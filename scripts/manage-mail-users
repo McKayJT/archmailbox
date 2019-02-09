@@ -1,0 +1,237 @@
+#!/bin/sh
+
+if [ -z "$SMTPD_DIRECTORY" ]; then
+  SMTPD_DIRECTORY='/etc/smtpd'
+fi
+
+if [ -z "$SQL_FILE" ]; then
+  SQL_FILE='smtp.sqlite'
+fi
+
+SQL_DB_PATH="$SMTPD_DIRECTORY/$SQL_FILE"
+
+_check_valid_db() {
+  if [ ! -r "$SQL_DB_PATH" ]; then
+    echo "Could not read database at $SQL_DB_PATH"
+    return 1
+  fi
+
+  if [ -z "$(echo '.schema virtuals' | sqlite3 "$SQL_DB_PATH")" ]; then
+    echo "Database does not contain table virtuals!"
+    return 1
+  fi
+
+  if [ -z "$(echo '.schema credentials' | sqlite3 "$SQL_DB_PATH")" ]; then
+    echo "Database does not contain table credentials!"
+    return 1
+  fi
+}
+
+_check_user_exists() {
+  _user_count=$(printf "Select count(*) from credentials where email = '%s'" \
+    "$USERNAME" | sqlite3 "$SQL_DB_PATH")
+
+  if [ "$_user_count" -gt 0 ]; then
+    return 0
+  fi
+
+  return 1
+}
+
+_create_db() {
+  echo "Creating database '$SQL_DB_PATH'"
+  if [ -r "$SQL_DB_PATH" ]; then
+    echo "Database $SQL_DB_PATH already exists!"
+    return 1
+  fi
+
+  printf '%s' 'Who will be postmaster? '
+  read -r POSTMASTER
+
+  if [ -z "$POSTMASTER" ]; then
+    echo 'You must have a postmaster!'
+    return 1
+  fi
+
+  cat <<EOF |
+BEGIN TRANSACTION;
+CREATE TABLE virtuals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email VARCHAR(255) NOT NULL,
+    destination VARCHAR(255) NOT NULL
+);
+CREATE TABLE credentials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email VARCHAR(255) NOT NULL,
+    password VARCHAR(255) NOT NULL
+);
+INSERT INTO virtuals (email, destination) VALUES('abuse','postmaster');
+INSERT INTO virtuals (email, destination) VALUES('security','postmaster');
+INSERT INTO virtuals (email, destination) VALUES('hostmaster','postmaster');
+INSERT INTO virtuals (email, destination) VALUES('webmaster','postmaster');
+INSERT INTO virtuals (email, destination) VALUES('dmarcreports','postmaster');
+INSERT INTO virtuals (email, destination) VALUES('postmaster','$POSTMASTER');
+COMMIT;
+EOF
+    sqlite3 "$SQL_DB_PATH"
+}
+
+_get_password() {
+  while [ -z "$PASSWORD" ]; do
+    printf '%s' "Password: "
+    stty -echo
+    read -r PASSWORD
+    stty echo
+    printf '\n'
+  done
+
+  PWHASH=$(printf '%s' "$PASSWORD" | /usr/lib/smtpd/opensmtpd/encrypt)
+}
+
+_get_username() {
+  while [ -z "$USERNAME" ]; do
+    printf '%s' "Username: "
+    read -r USERNAME
+  done
+
+  USERNAME=$(printf '%s' "$USERNAME" | tr '[:upper:]' '[:lower:]')
+}
+
+_add_user() {
+  if ! _check_valid_db; then
+    exit 1
+  fi
+
+  echo "Adding user to database '$SQL_DB_PATH'"
+
+  _get_username
+
+  if _check_user_exists; then
+    echo "User '$USERNAME' already exists!"
+    exit 1
+  fi
+
+  _get_password
+
+  printf "Adding user '%s' with password hash '%s'\n" "$USERNAME" "$PWHASH"
+
+  printf "INSERT INTO credentials (email, password) VALUES ('%s', '%s');" \
+    "$USERNAME" "$PWHASH" | sqlite3 "$SQL_DB_PATH"
+  printf "INSERT INTO virtuals (email, destination) VALUES ('%s', 'vmail');" \
+    "$USERNAME" | sqlite3 "$SQL_DB_PATH"
+}
+
+_update_password() {
+  if ! _check_valid_db; then
+    exit 1
+  fi
+
+  echo "Updating password in database '$SQL_DB_PATH'"
+
+  _get_username
+
+  if ! _check_user_exists; then
+    echo "'$USERNAME' does not exist in the database"
+    return 1
+  fi
+
+  _get_password
+
+  printf "UPDATE credentials SET password='%s' WHERE email='%s'" \
+    "$PWHASH" "$USERNAME" |
+    sqlite3 "$SQL_DB_PATH"
+}
+
+_delete_user() {
+  if ! _check_valid_db; then
+    exit 1
+  fi
+
+  echo "Deleting user from database '$SQL_DB_PATH'"
+  _get_username
+
+  if ! _check_user_exists; then
+    echo "'$USERNAME' does not exist in the database"
+    return 1
+  fi
+
+  while true; do
+    printf "Are you sure you want to delete '%s'? [y/N] " "$USERNAME"
+    read -r yn
+    case $yn in
+    y) break ;;
+    Y) break ;;
+    n) exit 0 ;;
+    N) exit 0 ;;
+    '') exit 0 ;;
+    *) echo 'Please choose y or n' ;;
+    esac
+  done
+
+  printf "DELETE FROM credentials where email = '%s'" "$USERNAME" |
+    sqlite3 "$SQL_DB_PATH"
+  printf "DELETE FROM virtuals where email = '%s'" "$USERNAME" |
+    sqlite3 "$SQL_DB_PATH"
+  echo "'$USERNAME' removed from database, but mail folders have not been removed"
+  exit 0
+}
+
+_list_users() {
+  if ! _check_valid_db; then
+    exit 1
+  fi
+
+  printf "SELECT email FROM credentials" | sqlite3 "$SQL_DB_PATH"
+}
+
+_usage() {
+  _name=$(basename "$0")
+  cat <<EOF
+usage: $_name [-f database] [-u username] [-p password] <command>
+
+commands:
+	create: create a new database
+	add: add a new user
+	delete: delete user
+	password: update user password
+	list: list users
+EOF
+}
+
+while getopts 'f:u:p:' c; do
+  case $c in
+  f) SQL_DB_PATH="$OPTARG" ;;
+  u) USERNAME="$OPTARG" ;;
+  p) PASSWORD="$OPTARG" ;;
+  *)
+    _usage
+    exit 1
+    ;;
+  esac
+done
+shift $((OPTIND - 1))
+
+case $1 in
+create)
+  _create_db
+  ;;
+add)
+  _add_user
+  ;;
+delete)
+  _delete_user
+  ;;
+password)
+  _update_password
+  ;;
+list)
+  _list_users
+  ;;
+*)
+  echo "No command specified"
+  _usage
+  exit 1
+  ;;
+esac
+
+# vim: et:ts=2:sw=2
