@@ -1,0 +1,20 @@
+# Maintainer: Simon Hanna <simon dot hanna AT serve-me DOT info>
+
+pkgname=('python-atpublic')
+pkgver=1.0
+pkgrel=1
+pkgdesc="@public for populating __all__"
+arch=(any)
+url="https://gitlab.com/warsaw/public"
+license=('APACHE')
+options=(!emptydirs)
+makedepends=('python-setuptools')
+source=("${pkgname}-${pkgver}.tar.gz::https://gitlab.com/warsaw/public/-/archive/${pkgver}/public-${pkgver}.tar.gz")
+sha256sums=('4804dc7b99a85ebbfdc6668c04f0554ff5644df88827bf92248c91ea9511ba96')
+
+package() {
+  cd "${srcdir}/public-${pkgver}"
+  python setup.py install --root="${pkgdir}/" --optimize=1
+}
+
+# vim:set ts=2 sw=2 et:
