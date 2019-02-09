@@ -1,0 +1,21 @@
+# Maintainer: Simon Hanna <simon dot hanna AT serve-me DOT info>
+
+pkgname=('python-aiosmtplib')
+pkgver=1.0.3
+pkgrel=1
+pkgdesc="A reimplementation of the Python stdlib smtplib.py based on asyncio"
+arch=(any)
+url="https://github.com/cole/aiosmtplib"
+license=('MIT')
+options=(!emptydirs)
+makedepends=('python-setuptools')
+source=("${pkgname}-${pkgver}.tar.gz::https://github.com/cole/aiosmtplib/archive/v${pkgver}.tar.gz")
+sha256sums=('bfd11c2856fb51ab98dfba287bf4a450b18cab6bbc161f29edc0d3c51d1c4595')
+
+package() {
+  cd "${srcdir}/aiosmtplib-${pkgver}"
+  python setup.py install --root="${pkgdir}/" --optimize=1
+  install -Dm644 LICENSE.txt "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
+
+# vim:set ts=2 sw=2 et:
