@@ -1,0 +1,124 @@
+diff -ura opensmtpd-pkg/opensmtpd-6.4.1p2/contrib/libexec/encrypt/encrypt.c opensmtpd-6.4.1p2/contrib/libexec/encrypt/encrypt.c
+--- opensmtpd-pkg/opensmtpd-6.4.1p2/contrib/libexec/encrypt/encrypt.c	2018-12-17 12:58:15.000000000 +0000
++++ opensmtpd-6.4.1p2/contrib/libexec/encrypt/encrypt.c	2019-01-13 21:31:56.603331117 +0000
+@@ -17,21 +17,15 @@
+ 
+ #include "includes.h"
+ 
+-#ifdef HAVE_CRYPT_H
+-#include <crypt.h> /* needed for crypt() */
+-#endif
+-#include <stdio.h>
++#include <sodium.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <unistd.h>
+ 
+-#define PASSWORD_LEN	128
+-#define SALT_LEN	16
++#define PASSWORD_LEN	crypto_pwhash_STRBYTES
++#define OPS		crypto_pwhash_OPSLIMIT_INTERACTIVE
++#define MEM		crypto_pwhash_MEMLIMIT_INTERACTIVE
+ 
+-static unsigned char itoa64[] =	 /* 0 ... 63 => ascii - 64 */
+-	"./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+-
+-static void to64(char *, long int, int);
+ static void print_passwd(const char *);
+ 
+ int
+@@ -41,6 +35,11 @@
+ 	size_t linesz;
+ 	ssize_t linelen;
+ 
++	if (sodium_init() == -1) {
++		puts("Could not initialize libsodium");
++		return -1;
++	}
++
+ 	if (argc > 2) {
+ 		fprintf(stderr, "usage: encrypt <string>\n");
+ 		return (1);
+@@ -66,37 +65,15 @@
+ void
+ print_passwd(const char *string)
+ {
+-	const char     *ids[] = { "2a", "6", "5", "3", "2", "1", NULL };
+-	const char     *id;
+-	char		salt[SALT_LEN+1];
+ 	char		buffer[PASSWORD_LEN];
+-	int		n;
+-	const char     *p;
+-
+-	for (n = 0; n < SALT_LEN; ++n)
+-		to64(&salt[n], arc4random_uniform(0xff), 1);
+-	salt[SALT_LEN] = '\0';
+-
+-	for (n = 0; ids[n]; n++) {
+-		id = ids[n];
+-		(void)snprintf(buffer, sizeof buffer, "$%s$%s$", id, salt);
+-		if ((p = crypt(string, buffer)) == NULL)
+-			continue;
+-		if (strncmp(p, buffer, strlen(buffer)) != 0)
+-			continue;
+-		printf("%s\n", p);
++	int		len;
++	
++	len = strlen(string);
++	
++	if (crypto_pwhash_str(buffer, string, len, OPS, MEM) != 0) {
++		puts("Failed to generate password hash");
+ 		return;
+ 	}
+ 
+-	salt[2] = 0;
+-	printf("%s\n", crypt(string, salt));
+-}
+-
+-void
+-to64(char *s, long int v, int n)
+-{
+-	while (--n >= 0) {
+-		*s++ = itoa64[v & 0x3f];
+-		v >>= 6;
+-	}
++	puts(buffer);
+ }
+diff -ura opensmtpd-pkg/opensmtpd-6.4.1p2/openbsd-compat/crypt_checkpass.c opensmtpd-6.4.1p2/openbsd-compat/crypt_checkpass.c
+--- opensmtpd-pkg/opensmtpd-6.4.1p2/openbsd-compat/crypt_checkpass.c	2018-12-17 12:58:15.000000000 +0000
++++ opensmtpd-6.4.1p2/openbsd-compat/crypt_checkpass.c	2019-01-13 21:05:04.319998330 +0000
+@@ -2,9 +2,7 @@
+ 
+ #include "includes.h"
+ #include <errno.h>
+-#ifdef HAVE_CRYPT_H
+-#include <crypt.h>
+-#endif
++#include <sodium.h>
+ #include <string.h>
+ #include <unistd.h>
+ 
+@@ -12,7 +10,9 @@
+ crypt_checkpass(const char *pass, const char *goodhash)
+ {
+ 	char *c;
+-
++	if(sodium_init() == -1)
++		goto fail;
++	
+ 	if (goodhash == NULL)
+ 		goto fail;
+ 
+@@ -20,11 +20,7 @@
+ 	if (strlen(goodhash) == 0 && strlen(pass) == 0)
+ 		return 0;
+ 
+-	c = crypt(pass, goodhash);
+-	if (c == NULL)
+-		goto fail;
+-
+-	if (strcmp(c, goodhash) == 0)
++	if (crypto_pwhash_str_verify(goodhash, pass, strlen(pass)) == 0)
+ 		return 0;
+ 
+ fail:
