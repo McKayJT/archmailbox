@@ -1,0 +1,22 @@
+# Maintainer: Simon Hanna <simon dot hanna AT serve-me DOT info>
+
+pkgname=('python-aiosmtpd')
+pkgver=1.2.1
+pkgrel=1
+pkgdesc="A reimplementation of the Python stdlib smtpd.py based on asyncio"
+arch=(any)
+url="https://github.com/aio-libs/aiosmtpd"
+license=('APACHE')
+options=(!emptydirs)
+makedepends=('python-setuptools')
+depends=('python-atpublic')
+source=("${pkgname}-${pkgver}.tar.gz::https://github.com/aio-libs/aiosmtpd/archive/${pkgver}.tar.gz")
+sha256sums=('b0e691c735916973b700ebaf2800fcc3e874953c1ac86ba0ac22320752531667')
+
+package() {
+  cd "${srcdir}/aiosmtpd-${pkgver}"
+  python setup.py install --root="${pkgdir}/" --optimize=1
+  rm -rf ${pkgdir}/usr/lib/python*/site-packages/examples
+}
+
+# vim:set ts=2 sw=2 et:
