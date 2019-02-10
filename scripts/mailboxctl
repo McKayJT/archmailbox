@@ -52,13 +52,13 @@ _check_backup() {
 }
 
 _mod_cfg() {
-    case $1 in
-      dovecot) echo 'dovecot' '/etc' 'dovecot' ;;
-      rspamd) echo 'rspamd' '/etc/rspamd' 'local.d' ;;
-      smtpd) echo 'smtpd' '/etc' 'smtpd' ;;
-      dkim) echo 'dkim' '/var/lib/rspamd' 'dkim' ;;
-      *) _die 'invalid module' ;;
-    esac
+  case $1 in
+    dovecot) echo 'dovecot' '/etc' 'dovecot' ;;
+    rspamd) echo 'rspamd' '/etc/rspamd' 'local.d' ;;
+    smtpd) echo 'smtpd' '/etc' 'smtpd' ;;
+    dkim) echo 'dkim' '/var/lib/rspamd' 'dkim' ;;
+    *) _die 'invalid module' ;;
+  esac
 }
 
 # _add_files module parent_directory backup_directory
@@ -165,32 +165,166 @@ EOF
     # shellcheck disable=SC2046
     _check_backup $(_mod_cfg "$module")
   done
-  echo "halt"
-  read -r temp
   for module in $_module_list; do
     # shellcheck disable=SC2046
     _restore_module $(_mod_cfg "$module")
   done
 }
 
+_gen_rsa_dkim_key() {
+  openssl genrsa -out "$TEMP_DIR/rsa.priv" ||
+    _die "failed to generate rsa private key"
+  openssl rsa -in "$TEMP_DIR/rsa.priv" -pubout -out "$TEMP_DIR/rsa.pub" ||
+    _die "failed to make rsa public key"
+  _rsa_private="$(cat "$TEMP_DIR/rsa.priv")"
+  _rsa_public="$(cat "$TEMP_DIR/rsa.pub")"
+  _rsa_public="$(echo "$_rsa_public" | sed '/^--.*/d')"
+  _rsa_public="$(echo "$_rsa_public" | tr -d '\n')"
+}
+
+# _output_dkim_config domain [type selector privkey pubkey]*
+_output_dkim_config() {
+  _domain=$1
+  shift
+  cat >"$_output_dir/$_domain.conf" <<EOF
+$_domain {
+    selectors [
+EOF
+
+  while [ $# -gt 3 ]; do
+    _type=$1
+    _selector=$2
+    _privkey=$3
+    _pubkey=$4
+    echo "$_privkey" >"$_output_dir/$_domain.$_selector.key"
+
+    cat >>"$_output_dir/$_domain.conf" <<EOF
+     {
+         selector = "$_selector";
+         path = "/var/lib/rspamd/dkim/$_domain.$_selector.key";
+     },
+EOF
+    cat >>"$_output_dir/$_domain.dns" <<EOF
+$_selector._domainkey.$_domain. IN TXT (
+  "v=DKIM1; k=$_type; p=$_pubkey"
+)
+EOF
+    shift 4
+  done
+
+  cat >>"$_output_dir/$_domain.conf" <<EOF
+    ]
+}
+EOF
+}
+
+_generate_dkim() {
+  _check_is_root no
+  echo 'Generating DKIM keys'
+  while [ -z "$DOMAIN" ]; do
+    printf 'Enter domain: '
+    read -r DOMAIN
+  done
+  while [ -z "$_rsa_selector" ]; do
+    printf 'Enter selector for rsa: '
+    read -r _rsa_selector
+  done
+  while [ -z "$_eddsa_selector" ]; do
+    printf 'Enter selector for eddsa: '
+    read -r _eddsa_selector
+  done
+  _output_dir="dkim_$DOMAIN"
+  if [ -d "$_output_dir" ]; then
+    _die "output directory $_output_dir already exists"
+  fi
+  mkdir "$_output_dir" || _die "error creating output directory $_output_dir"
+  _gen_rsa_dkim_key
+
+  _eddsa_keys="$(eddsatool genkey)"
+  _eddsa_private="$(echo "$_eddsa_keys" | cut -d ' ' -f1 -)"
+  _eddsa_public="$(echo "$_eddsa_keys" | cut -d ' ' -f2 -)"
+
+  _output_dkim_config "$DOMAIN" \
+    'ed25519' "$_eddsa_selector" "$_eddsa_private" "$_eddsa_public" \
+    'rsa' "$_rsa_selector" "$_rsa_private" "$_rsa_public"
+
+  _script="$(basename "$0")"
+  cat <<EOF
+Your DKIM configuration is saved in $_output_dir
+Run:
+$_script -d $DOMAIN installdkim
+as root to install
+
+Be sure to add the entries from
+$_output_dir/$DOMAIN.dns
+with your dns provider
+EOF
+}
+
+_install_dkim() {
+  _check_is_root yes
+  echo 'Installing DKIM keys'
+  while [ -z "$DOMAIN" ]; do
+    printf 'Enter domain: '
+    read -r DOMAIN
+  done
+  if [ -r "/etc/rspamd/local.d/dkim/$DOMAIN.conf" ]; then
+    _die "configuration for $DOMAIN already exists"
+  fi
+  _output_dir="dkim_$DOMAIN"
+  if [ ! -d "$_output_dir" ]; then
+    _die "output directory $_output_dir does not exist"
+  fi
+  if [ ! -d "/etc/rspamd/local.d/dkim" ]; then
+    mkdir -p "/etc/rspamd/local.d/dkim" ||
+      _die "could not create output directory for rspamd configuration"
+    chown '_rspamd:_rspamd' '/etc/rspamd/local.d/dkim'
+    chmod 644 '/etc/rspamd/local.d/dkim'
+  fi
+  _files="$(ls "$_output_dir"/*.conf)"
+  for _file in $_files; do
+    _file="$(basename "$_file")"
+    cp "$_output_dir/$_file" '/etc/rspamd/local.d/dkim'
+    chown '_rspamd:_rspamd' "/etc/rspamd/local.d/dkim/$_file"
+    chmod '644' "/etc/rspamd/local.d/dkim/$_file"
+  done
+  if [ ! -d '/var/lib/rspamd/dkim' ]; then
+    mkdir -p "/var/lib/rspamd/dkim" ||
+      _die "could not find or create output directory for rspamd configuration"
+    chown '_rspamd:_rspamd' '/var/lib/rspamd/dkim'
+    chmod '640' '/var/lib/rspamd/dkim'
+  fi
+  _files="$(ls "$_output_dir"/*.key)"
+  for _file in $_files; do
+    _file="$(basename "$_file")"
+    cp "$_output_dir/$_file" '/var/lib/rspamd/dkim'
+    chown '_rspamd:_rspamd' "/var/lib/rspamd/dkim/$_file"
+    chmod '640' "/var/lib/rspamd/dkim/$_file"
+  done
+}
+
 _usage() {
   _script="$(basename "$0")"
   cat <<EOF
-usage: $_script [-h] [-f filename] [-p password] [-m modules] <command>
+usage: $_script [-h] [-f filename] [-p password]
+	[-m modules] [-d domain] <command>
 commands:
 	backupconfig: backup selected modules
 	restoreconfig: restore selected modules
+	gendkim: generate dkim configuration for domain
+	installdkim: install dkim configuration
 modules:
 	$AVAIL_MODULES
 	if no modules specified, default to all
 EOF
 }
 
-while getopts 'hf:p:m:' flag; do
+while getopts 'hf:p:m:d:' flag; do
   case $flag in
     f) FILENAME=$OPTARG ;;
     p) PASSWORD=$OPTARG ;;
     m) MODULES=$OPTARG ;;
+    d) DOMAIN=$OPTARG ;;
     h)
       _usage
       exit 0
@@ -206,6 +340,8 @@ _create_temp_dir
 case $1 in
   backupconfig) _backup_modules "$MODULES" ;;
   restoreconfig) _restore_modules "$MODULES" ;;
+  gendkim) _generate_dkim ;;
+  installdkim) _install_dkim ;;
   *) _die "Unrecognized command $1" usage ;;
 esac
 
