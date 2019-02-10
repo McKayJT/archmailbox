@@ -1,0 +1,98 @@
+#!/bin/sh
+
+# debugging cruft
+# set -x
+
+AVAIL_MODULES="dovecot rspamd smtpd dkim"
+TEMP_DIR=""
+
+_die() {
+  echo "$1" 1>&2
+  exit 1
+}
+
+_cleanup() {
+  if [ -d "$TEMP_DIR" ]; then
+    rm -rf "$TEMP_DIR"
+  fi
+  stty echo
+}
+
+_create_temp_dir() {
+  TEMP_DIR=$(mktemp -d)
+  FILE_LIST="$TEMP_DIR/backup.files"
+  chmod 700 "$TEMP_DIR"
+  trap _cleanup 0
+  trap "exit 2" 1 2 3 15
+}
+
+# _add_files module parent_directory backup_directory
+_add_files() {
+  cd "$2" || _die "Could not cd to $2"
+  {
+    find . -path "./$3" -type d -print0
+    find . -path "./$3/*" -type d -print0
+    find . -path "./$3/*" -print0
+  } >> "$FILE_LIST.$1"
+  cd "$OLDPWD" || _die "Could not cd to $OLDPWD"
+}
+
+# _get_password [suggest password: yes/no]
+_get_password() {
+  if [ "$1" = 'yes' ] && [ -z "$PASSWORD" ]; then
+    echo "Password Suggestion: $(encpipe -G)"
+  fi
+  while [ -z "$PASSWORD" ]; do
+    printf 'Enter password: '
+    stty -echo
+    read -r _pw1
+    stty echo
+    printf '\nConfirm password: '
+    stty -echo
+    read -r _pw2
+    stty echo
+    printf '\n'
+    if [ "$_pw1" = "$_pw2" ]; then
+      PASSWORD="$_pw1"
+    else
+      echo "Passwords do not match"
+    fi
+  done
+}
+
+_backup_modules() {
+  _module_list=$1
+  for module in $_module_list; do
+    case $module in
+      dovecot) _add_files 'dovecot' '/etc' 'dovecot' ;;
+      rspamd) _add_files 'rspamd' '/etc/rspamd' 'local.d' ;;
+      smtpd) _add_files 'smtpd' '/etc' 'smtpd' ;;
+      dkim) _add_files 'dkim' '/var/lib/rspamd' 'dkim' ;;
+    esac
+  done
+
+  _tar_flags=""
+  for module in $_module_list; do
+    case $module in
+      dovecot) _tar_flags="$_tar_flags -C /etc -T $TEMP_DIR/backup.files.dovecot" ;;
+      rspamd) _tar_flags="$_tar_flags -C /etc/rspamd -T $TEMP_DIR/backup.files.rspamd" ;;
+      smtpd) _tar_flags="$_tar_flags -C /etc -T $TEMP_DIR/backup.files.smtpd" ;;
+      dkim) _tar_flags="$_tar_flags -C /var/lib/rspamd -T $TEMP_DIR/backup.files.dkim" ;;
+    esac
+  done
+  _get_password yes
+  echo "$PASSWORD" > "$TEMP_DIR/password"
+  # shellcheck disable=SC2086
+  eval tar --null --acls --xattrs $_tar_flags -cf - |
+    xz -z -c -9 - |
+    encpipe -e -P "$TEMP_DIR/password" -o test.tar.xz.encpipe
+}
+
+umask 077
+_create_temp_dir
+case $1 in
+  configbackup) _backup_modules "$AVAIL_MODULES" ;;
+  *) _die "Unrecognized command $1" ;;
+esac
+
+# vim: et:sw=2:st=2
