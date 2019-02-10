@@ -4,10 +4,16 @@
 # set -x
 
 AVAIL_MODULES="dovecot rspamd smtpd dkim"
+MODULES="$AVAIL_MODULES"
 TEMP_DIR=""
+FILENAME="backup.tar.xz.encpipe"
 
+# _die message displayusage
 _die() {
   echo "$1" 1>&2
+  if [ -n "$2" ]; then
+    _usage 1>&2
+  fi
   exit 1
 }
 
@@ -26,6 +32,35 @@ _create_temp_dir() {
   trap "exit 2" 1 2 3 15
 }
 
+# _check_is_root yes/no
+_check_is_root() {
+  if [ "$1" = 'yes' ]; then
+    if [ "$(whoami)" != 'root' ]; then
+      _die "This command must be run as root"
+    fi
+  else
+    if [ "$(whoami)" = 'root' ]; then
+      _die "This command must not be run as root"
+    fi
+  fi
+}
+
+_check_backup() {
+  if [ ! -d "$3" ]; then
+    _die "module $1 not found in backup"
+  fi
+}
+
+_mod_cfg() {
+    case $1 in
+      dovecot) echo 'dovecot' '/etc' 'dovecot' ;;
+      rspamd) echo 'rspamd' '/etc/rspamd' 'local.d' ;;
+      smtpd) echo 'smtpd' '/etc' 'smtpd' ;;
+      dkim) echo 'dkim' '/var/lib/rspamd' 'dkim' ;;
+      *) _die 'invalid module' ;;
+    esac
+}
+
 # _add_files module parent_directory backup_directory
 _add_files() {
   cd "$2" || _die "Could not cd to $2"
@@ -33,7 +68,7 @@ _add_files() {
     find . -path "./$3" -type d -print0
     find . -path "./$3/*" -type d -print0
     find . -path "./$3/*" -print0
-  } >> "$FILE_LIST.$1"
+  } >>"$FILE_LIST.$1"
   cd "$OLDPWD" || _die "Could not cd to $OLDPWD"
 }
 
@@ -60,39 +95,118 @@ _get_password() {
   done
 }
 
+_add_tar_flags() {
+  _tar_flags="$_tar_flags -C $2 -T $FILE_LIST.$1"
+}
+
+_restore_module() {
+  echo "restoring $1"
+  mv "$3" "$2" || _die "Cannot restore $1"
+}
+
 _backup_modules() {
   _module_list=$1
+  _check_is_root 'yes'
+  if [ -r "$FILENAME" ]; then
+    _die "$FILENAME already exists!"
+  fi
   for module in $_module_list; do
-    case $module in
-      dovecot) _add_files 'dovecot' '/etc' 'dovecot' ;;
-      rspamd) _add_files 'rspamd' '/etc/rspamd' 'local.d' ;;
-      smtpd) _add_files 'smtpd' '/etc' 'smtpd' ;;
-      dkim) _add_files 'dkim' '/var/lib/rspamd' 'dkim' ;;
-    esac
+    # shellcheck disable=SC2046
+    _add_files $(_mod_cfg "$module")
   done
 
   _tar_flags=""
   for module in $_module_list; do
-    case $module in
-      dovecot) _tar_flags="$_tar_flags -C /etc -T $TEMP_DIR/backup.files.dovecot" ;;
-      rspamd) _tar_flags="$_tar_flags -C /etc/rspamd -T $TEMP_DIR/backup.files.rspamd" ;;
-      smtpd) _tar_flags="$_tar_flags -C /etc -T $TEMP_DIR/backup.files.smtpd" ;;
-      dkim) _tar_flags="$_tar_flags -C /var/lib/rspamd -T $TEMP_DIR/backup.files.dkim" ;;
-    esac
+    # shellcheck disable=SC2046
+    _add_tar_flags $(_mod_cfg "$module")
   done
   _get_password yes
-  echo "$PASSWORD" > "$TEMP_DIR/password"
-  # shellcheck disable=SC2086
+  echo "$PASSWORD" >"$TEMP_DIR/password"
+  # shellcheck disable=SC2046
   eval tar --null --acls --xattrs $_tar_flags -cf - |
     xz -z -c -9 - |
-    encpipe -e -P "$TEMP_DIR/password" -o test.tar.xz.encpipe
+    encpipe -e -P "$TEMP_DIR/password" -o "$FILENAME"
 }
+
+_restore_modules() {
+  _module_list=$1
+  _check_is_root 'yes'
+
+  cat <<EOF
+     ********WARNING*********
+This operation will delete all the
+files in the current configuration
+for modules:
+$_module_list
+
+Type 'delete my files' to continue
+     ********WARNING*********
+EOF
+  read -r _confirmation
+  if [ "$_confirmation" != 'delete my files' ]; then
+    echo "aborting"
+    exit 0
+  fi
+  if [ ! -r "$FILENAME" ]; then
+    _die "Cannot read backup file $FILENAME"
+  fi
+  _real_file="$(realpath "$FILENAME")"
+
+  _get_password no
+  echo "$PASSWORD" >"$TEMP_DIR/password"
+  cd "$TEMP_DIR" || _die "Cannot cd to $TEMP_DIR"
+  encpipe -d -P "$TEMP_DIR/password" -i "$_real_file" |
+    xz -d -c - |
+    tar --acls --xattrs -xf -
+
+  # check that we have all the modules in the backup
+  # before we start overwriting things
+  for module in $_module_list; do
+    # shellcheck disable=SC2046
+    _check_backup $(_mod_cfg "$module")
+  done
+  echo "halt"
+  read -r temp
+  for module in $_module_list; do
+    # shellcheck disable=SC2046
+    _restore_module $(_mod_cfg "$module")
+  done
+}
+
+_usage() {
+  _script="$(basename "$0")"
+  cat <<EOF
+usage: $_script [-h] [-f filename] [-p password] [-m modules] <command>
+commands:
+	backupconfig: backup selected modules
+	restoreconfig: restore selected modules
+modules:
+	$AVAIL_MODULES
+	if no modules specified, default to all
+EOF
+}
+
+while getopts 'hf:p:m:' flag; do
+  case $flag in
+    f) FILENAME=$OPTARG ;;
+    p) PASSWORD=$OPTARG ;;
+    m) MODULES=$OPTARG ;;
+    h)
+      _usage
+      exit 0
+      ;;
+    *) _die "Invalid option" usage ;;
+  esac
+done
+
+shift $((OPTIND - 1))
 
 umask 077
 _create_temp_dir
 case $1 in
-  configbackup) _backup_modules "$AVAIL_MODULES" ;;
-  *) _die "Unrecognized command $1" ;;
+  backupconfig) _backup_modules "$MODULES" ;;
+  restoreconfig) _restore_modules "$MODULES" ;;
+  *) _die "Unrecognized command $1" usage ;;
 esac
 
-# vim: et:sw=2:st=2
+# vim: et:sw=2:ts=2
