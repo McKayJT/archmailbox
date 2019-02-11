@@ -21,6 +21,11 @@ _check_valid_db() {
     return 1
   fi
 
+  if [ -z "$(echo '.schema domains' | sqlite3 "$SQL_DB_PATH")" ]; then
+    echo "Database does not contain table domains!"
+    return 1
+  fi
+
   if [ -z "$(echo '.schema credentials' | sqlite3 "$SQL_DB_PATH")" ]; then
     echo "Database does not contain table credentials!"
     return 1
@@ -32,6 +37,17 @@ _check_user_exists() {
     "$USERNAME" | sqlite3 "$SQL_DB_PATH")
 
   if [ "$_user_count" -gt 0 ]; then
+    return 0
+  fi
+
+  return 1
+}
+
+_check_domain_exists() {
+  _domain_count=$(printf "Select count(*) from domains where domain = '%s'" \
+    "$DOMAIN" | sqlite3 "$SQL_DB_PATH")
+
+  if [ "$_domain_count" -gt 0 ]; then
     return 0
   fi
 
@@ -65,6 +81,10 @@ CREATE TABLE credentials (
     email VARCHAR(255) NOT NULL,
     password VARCHAR(255) NOT NULL
 );
+CREATE TABLE domains (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain VARCHAR(255) NOT NULL
+);
 INSERT INTO virtuals (email, destination) VALUES('abuse','postmaster');
 INSERT INTO virtuals (email, destination) VALUES('security','postmaster');
 INSERT INTO virtuals (email, destination) VALUES('hostmaster','postmaster');
@@ -95,6 +115,15 @@ _get_username() {
   done
 
   USERNAME=$(printf '%s' "$USERNAME" | tr '[:upper:]' '[:lower:]')
+}
+
+_get_domain() {
+  while [ -z "$DOMAIN" ]; do
+    printf '%s' "Domain: "
+    read -r DOMAIN
+  done
+
+  DOMAIN=$(printf '%s' "$DOMAIN" | tr '[:upper:]' '[:lower:]')
 }
 
 _add_user() {
@@ -142,6 +171,21 @@ _update_password() {
     sqlite3 "$SQL_DB_PATH"
 }
 
+_confirm_delete() {
+  while true; do
+    printf "Are you sure you want to delete '%s'? [y/N] " "$1"
+    read -r yn
+    case $yn in
+    y) break ;;
+    Y) break ;;
+    n) exit 0 ;;
+    N) exit 0 ;;
+    '') exit 0 ;;
+    *) echo 'Please choose y or n' ;;
+    esac
+  done
+}
+
 _delete_user() {
   if ! _check_valid_db; then
     exit 1
@@ -155,18 +199,7 @@ _delete_user() {
     return 1
   fi
 
-  while true; do
-    printf "Are you sure you want to delete '%s'? [y/N] " "$USERNAME"
-    read -r yn
-    case $yn in
-    y) break ;;
-    Y) break ;;
-    n) exit 0 ;;
-    N) exit 0 ;;
-    '') exit 0 ;;
-    *) echo 'Please choose y or n' ;;
-    esac
-  done
+  _confirm_delete "$USERNAME"
 
   printf "DELETE FROM credentials where email = '%s'" "$USERNAME" |
     sqlite3 "$SQL_DB_PATH"
@@ -184,10 +217,56 @@ _list_users() {
   printf "SELECT email FROM credentials" | sqlite3 "$SQL_DB_PATH"
 }
 
+_add_virtual() {
+  if ! _check_valid_db; then
+    exit 1
+  fi
+
+  echo "Adding virtual domain to database '$SQL_DB_PATH'"
+
+  _get_domain
+
+  if _check_domain_exists; then
+    echo "Domain '$DOMAIN' already exists!"
+    exit 1
+  fi
+
+  printf "INSERT INTO domains (domain) VALUES ('%s');" "$DOMAIN" |
+    sqlite3 "$SQL_DB_PATH"
+}
+
+_delete_virtual() {
+  if ! _check_valid_db; then
+    exit 1
+  fi
+
+  echo "Deleting virtual domain from database '$SQL_DB_PATH'"
+  _get_domain
+
+  if ! _check_domain_exists; then
+    echo "'$DOMAIN' does not exist in the database"
+    return 1
+  fi
+
+  _confirm_delete "$DOMAIN"
+
+  printf "DELETE FROM domains WHERE domain = '%s'" "$DOMAIN" |
+    sqlite3 "$SQL_DB_PATH"
+  exit 0
+}
+
+_list_virtuals() {
+  if ! _check_valid_db; then
+    exit 1
+  fi
+
+  printf "SELECT domain FROM domains" | sqlite3 "$SQL_DB_PATH"
+}
+
 _usage() {
   _name=$(basename "$0")
   cat <<EOF
-usage: $_name [-f database] [-u username] [-p password] <command>
+usage: $_name [-f database] [-u username] [-p password] [-d domain] <command>
 
 commands:
 	create: create a new database
@@ -195,14 +274,18 @@ commands:
 	delete: delete user
 	password: update user password
 	list: list users
+	addvirtual: add virtual domain
+	delvirtual: delete virtual domain
+	listvirtual: list virtual domains
 EOF
 }
 
-while getopts 'f:u:p:' c; do
+while getopts 'f:u:p:d:' c; do
   case $c in
   f) SQL_DB_PATH="$OPTARG" ;;
   u) USERNAME="$OPTARG" ;;
   p) PASSWORD="$OPTARG" ;;
+  d) DOMAIN="$OPTARG" ;;
   *)
     _usage
     exit 1
@@ -218,14 +301,23 @@ create)
 add)
   _add_user
   ;;
+addvirtual)
+  _add_virtual
+  ;;
 delete)
   _delete_user
+  ;;
+delvirtual)
+  _delete_virtual
   ;;
 password)
   _update_password
   ;;
 list)
   _list_users
+  ;;
+listvirtual)
+  _list_virtuals
   ;;
 *)
   echo "No command specified"
