@@ -7,6 +7,7 @@
 .Sh SYNOPSIS 
 .Nm manage-mail-users 
 .Op Fl f Ar database 
+.Op Fl d Ar domain 
 .Op Fl u Ar username 
 .Op Fl p Ar password 
 .Ar command 
@@ -29,6 +30,12 @@ delete user from database
 update user password
 .It Ic list
 list all users
+.It Ic addvirtual
+add virtual domain
+.It Ic delvirtual
+delete virtual domain
+.It Ic listvirtual
+list virtual domains
 .El
 .Sh FILES 
 If
