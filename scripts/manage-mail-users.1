@@ -1,0 +1,45 @@
+.Dd $Mdocdate: Feb 11 2019 $ 
+.Dt MANAGE-MAIL-USERS 1 
+.Os 
+.Sh NAME 
+.Nm manage-mail-users 
+.Nd manage email user database
+.Sh SYNOPSIS 
+.Nm manage-mail-users 
+.Op Fl f Ar database 
+.Op Fl u Ar username 
+.Op Fl p Ar password 
+.Ar command 
+.Sh DESCRIPTION 
+.Nm 
+is used to manage the sqlite database of mail users.
+
+Usernames are in
+.Li username@domain.tld
+format.
+.Sh COMMANDS
+.Bl -hang
+.It Ic create
+create a new database
+.It Ic add
+add user to database
+.It Ic delete
+delete user from database
+.It Ic password
+update user password
+.It Ic list
+list all users
+.El
+.Sh FILES 
+If
+.Fl f
+is not passed, it will use
+.Pa /etc/smtpd/smtp.sqlite
+as the database to work on.
+.Sh EXIT STATUS 
+.Ex -std
+.Sh SECURITY CONSIDERATIONS 
+The
+.Fl p
+option poses a security risk as any user on the system can see the password in the process list.
+It is intended only for use during non-interactive setup.
