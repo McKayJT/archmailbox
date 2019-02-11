@@ -1,0 +1,99 @@
+.Dd $Mdocdate: February 11 2019 $ 
+.Dt MAILBOXCTL 1 
+.Os 
+.Sh NAME 
+.Nm mailboxctl 
+.Nd control mail configuration
+.\" .Sh LIBRARY 
+.\" For sections 2, 3, and 9 only. 
+.\" Not used in OpenBSD. 
+.Sh SYNOPSIS 
+.Nm mailboxctl 
+.Op Fl h
+.Op Fl f Ar filename 
+.Op Fl p Ar password 
+.Op Fl m Ar modules 
+.Op Fl d Ar domain 
+.Ar command
+.Sh DESCRIPTION 
+The 
+.Nm 
+script controls configuration of the archmailbox server.
+It also is used to create and restore backups of the server.
+.Sh COMMANDS
+.Bl -tag
+.It Ic backupconfig
+A backup of the selected modules is generated.
+The backup is encrypted using
+.Xr encpipe 1
+with the password from the
+.Fl p
+flag or the one enterted during interactive use.
+The module list may be any of
+.Bl -tag
+.It Ar dovecot
+configuration files in
+.Pa /etc/dovecot
+.It Ar rspamd
+configuration files in
+.Pa /etc/rspamd/local.d
+.It Ar smtpd
+configuration files in
+.Pa /etc/smtpd
+along with the sqlite database of mail users
+.It Ar dkim
+dkim signing keys from
+.Pa /var/lib/rspamd/dkim
+.El
+
+If no module list is specified all modules are included in the backup.
+The module list is separated using a space between each module to be included.
+.It Ic restoreconfig
+restore a configuration generated using
+.Ic backupconfig .
+The module list must be the same as was used to create the backup.
+Importantly, if no module list is specified it will attempt to restore
+all modules that are supported and not all modules that are in the backup file.
+
+This command will erase all files in the paths for the specified module.
+It is recommended to save the current configuration first before using.
+.It Ic gendkim
+DKIM keys and configuration are generated for a new domain.
+Two DKIM keys are created.
+The first is a low security RSA key of bit length 1024 for legacy systems.
+The second is a high security ed25519 key for modern systems.
+This will set up two selectors and the configuration generated will sign
+email using both keys with different selectors.
+
+The generated configuration files will be located under a new directory
+.Pa dkim_domain.tld
+in the current working path.
+
+While
+.Ic installdkim
+can install the configuration files and key, setting up DNS entries for
+the selectors is outside the scope of
+.Nm .
+The generated DNS entries will be located in
+.Pa dkim_domain.tld/domain.tld.dns
+and will need to be added using whatever interface your DNS server provides.
+.It Ic installdkim
+A generated set of configuration files and DKIM keys will be installed in
+the current configuration.
+
+It will refuse to overwrite an existing configuration for a domain.
+The existing configuration will need to be removed from
+.Pa /etc/rspamd/local.d/dkim
+and
+.Pa /var/lib/rspamd/dkim
+if the selectors and DKIM keys are to changed from an existing configuration.
+
+Once the installation has been completed please remove the files from
+.Pa dkim_domain.tld
+as they contain sensitive key material.
+.El
+.Sh FILES 
+.Pa backup.tar.xz.encpipe
+is used as the default file for configuration backup and restore
+.Sh EXIT STATUS 
+.Ex -std
