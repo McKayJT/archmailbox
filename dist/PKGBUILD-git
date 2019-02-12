@@ -1,0 +1,28 @@
+# Maintainer: John McKay <john AT octet DOT space>
+pkgname='archmailbox-git'
+pkgver=VERSION
+pkgrel=1
+pkgdesc="Batteries-included mail server configuration"
+arch=('any')
+url="https://github.com/McKayJT/archmailbox/"
+license=('custom:UNLICENSE')
+depends=('bash' 'python')
+makedepends=('git')
+source=('git+https://github.com/McKayJT/archmailbox.git')
+sha256sums=('SKIP')
+
+# Please refer to the 'USING VCS SOURCES' section of the PKGBUILD man page for
+# a description of each element in the source array.
+
+pkgver() {
+	cd "$srcdir/${pkgname%-git}"
+
+	printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+package() {
+	cd "$srcdir/${pkgname%-git}"
+	make DESTDIR="$pkgdir/" install
+	install -Dm644 UNLICENSE \
+		"$pkgdir/usr/share/licenses/archmailbox/UNLICENSE"
+}
