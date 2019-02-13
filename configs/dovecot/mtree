@@ -1,0 +1,94 @@
+# mtree for dovecot
+# starting directory is /
+
+# /
+/set type=file uname=root gname=root mode=0644 nlink=1 flags=none
+.           type=dir mode=0755 nochange
+
+# ./etc
+etc         type=dir mode=0755 nochange
+
+# ./etc/dovecot
+dovecot     type=dir mode=0755
+    dovecot-sql.conf.ext
+    dovecot-trash.conf.ext
+    dovecot.conf
+
+# ./etc/dovecot/conf.d
+conf.d          type=dir mode=0755
+    10-auth.conf
+    10-logging.conf
+    10-mail.conf
+    10-master.conf
+    10-ssl.conf
+    15-lda.conf
+    15-mailboxes.conf
+    20-imap.conf
+    20-lmtp.conf
+    90-plugin.conf
+    90-quota.conf
+    90-sieve-extprograms.conf
+    90-sieve.conf
+    auth-sql.conf.ext
+
+# ./etc/dovecot/conf.d
+..
+
+# ./etc/dovecot
+..
+
+# ./etc
+..
+
+# ./usr
+usr             type=dir mode=0755 nochange
+
+# ./usr/lib
+lib             type=dir mode=0755 nochange
+
+# ./usr/lib/dovecot
+/set type=file uname=root gname=root mode=0755 flags=none
+dovecot         type=dir mode=0755 nochange
+    dovecot-lda.sh
+    learn_ham.sh
+    learn_spam.sh
+    quota-warning.sh
+# ./usr/lib/dovecot
+..
+
+# ./usr/lib
+..
+
+# ./usr
+..
+
+# ./var
+var             type=dir
+
+# ./var/lib
+lib             type=dir
+
+# ./var/lib/dovecot
+dovecot         type=dir
+
+# ./var/lib/dovecot/imapsieve
+imapsieve       type=dir
+
+# ./var/lib/dovecot/imapsieve/before
+/set type=file uname=root gname=root mode=0644
+before          type=dir mode=0755
+    report-ham.sieve
+    report-spam.sieve
+
+# ./var/lib/dovecot/imapsieve/before
+..
+
+# ./var/lib/dovecot/imapsieve
+..
+
+# ./var/lib/dovecot/sieve
+sieve           type=dir mode=0755
+
+# ./var/sieve/before
+before          type=dir mode=0755
+    spamtest.sieve
