@@ -13,6 +13,8 @@ install:
 		$(DESTDIR)$(bindir)/mailboxctl
 	install -Dm755 scripts/manage-mail-users \
 		$(DESTDIR)$(bindir)/manage-mail-users
+	install -Dm755 scripts/archmailbox-install \
+		$(DESTDIR)$(bindir)/archmailbox-install
 	install -Dm644 manuals/mailboxctl.8 \
 		$(DESTDIR)$(mandir)/man8/mailboxctl.8
 	install -Dm644 manuals/manage-mail-users.8 \
