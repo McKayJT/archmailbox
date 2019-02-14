@@ -1,0 +1,174 @@
+#!/bin/bash
+
+all_packages=('python-atpublic' 'python-aiosmtpd'
+  'python-aiosmtplib' 'rspamd' 'encpipe'
+  'opensmtpd' 'opensmtpd-sqlite'
+  'knot-resolver' 'pyrelay-rspamd'
+  'mtree' 'dovecot' 'pigeonhole')
+
+CFG_INSTALL_DIR='/usr/share/archmailbox'
+
+# _die message usage
+_die() {
+  echo "$1" 1>&2
+  if [ "$2" = 'usage' ]; then
+    _usage 1>&2
+  fi
+  exit 1
+}
+
+_cleanup() {
+  if [ -d "$TEMP_DIR" ]; then
+    rm -rf "$TEMP_DIR"
+  fi
+  stty echo
+}
+
+_create_temp_dir() {
+  TEMP_DIR=$(mktemp -d)
+  chmod 700 "$TEMP_DIR"
+  trap _cleanup 0
+  trap "exit 2" 1 2 3 15
+}
+
+_install_packages() {
+  shopt -s nullglob
+  _cwd="$PWD"
+  for _package in "${all_packages[@]}"; do
+    if [ -d "$CFG_INSTALL_DIR/PKGBUILDs/$_package" ]; then
+      cp "$CFG_INSTALL_DIR/PKGBUILDs/$_package/"* "$TEMP_DIR"
+      cd "$TEMP_DIR" || _die "could not change to temporary directory"
+      if ! makepkg -sriL --asdeps --noprogressbar --noconfirm; then
+        _logs=(*.log)
+        for _log in "${_logs[@]}"; do
+          _tmp="$(mktemp "$_cwd/${_log%.log}.XXXX.log")"
+          cp "$_log" "$_tmp"
+        done
+        _die "build of $_package failed. Log files stored in current directory."
+      fi
+      rm -rf "$TEMP_DIR"
+      TEMP_DIR="$(mktemp -d)"
+    else
+      sudo pacman --noprogressbar --noconfirm --asdeps -S "$_package" ||
+        _die "install of $_package failed"
+    fi
+  done
+}
+
+_get_hostname() {
+  while [ -z "$HOSTNAME" ]; do
+    read -r -p "Enter hostname: " HOSTNAME
+  done
+}
+
+_install_configurations() {
+  if ! command -v mtree >/dev/null; then
+    _die "mtree not installed. Did you forgot to install packages?"
+  fi
+
+  _get_hostname
+
+  for _package in "${all_packages[@]}"; do
+    if [ -d "$CFG_INSTALL_DIR/configs/$_package" ]; then
+      case $_package in
+      dovecot)
+        echo 'installing dovecot configuration'
+        mkdir -p "/etc/dovecot"
+        mkdir -p "/var/lib/dovecot"
+        mkdir -p "/var/vmail"
+        cp -r "$CFG_INSTALL_DIR/configs/dovecot/etc/"* "/etc/dovecot" ||
+          _die "dovecot etc install fails"
+        cp -r "$CFG_INSTALL_DIR/configs/dovecot/lib/"* "/usr/lib/dovecot" ||
+          _die "dovecot lib install fails"
+        sed -i "s/DEFAULTHOSTNAME/$HOSTNAME/" \
+          '/etc/dovecot/conf.d/15-lda.conf'
+        cp -r "$CFG_INSTALL_DIR/configs/dovecot/var/"* "/var/lib/dovecot" ||
+          _die "dovecot var install fails"
+        cp -r "$CFG_INSTALL_DIR/configs/dovecot/tmpfiles.d/dovecot.conf" \
+          "/etc/tmpfiles.d/dovecot.conf" ||
+          _die "dovecot tmpfiles.d install fails"
+        for _dir in 'imapsieve/before/' 'sieve/before/'; do
+          sievec "/var/lib/dovecot/$_dir" || _die "sievec failed"
+        done
+        systemd-tmpfiles --create dovecot.conf ||
+          _die "failed to create dovecot tmpfiles"
+        ;;
+      rspamd)
+        echo 'installing rspamd configuration'
+        mkdir -p "/etc/rspamd/local.d"
+        mkdir -p "/etc/rspamd/local.d/dkim"
+        mkdir -p "/var/lib/rspamd/"
+        cp -r "$CFG_INSTALL_DIR/configs/rspamd/local.d/"* "/etc/rspamd/local.d/" ||
+          _die "rspamd local.d install fails"
+        cp "$CFG_INSTALL_DIR/configs/rspamd/systemd/rspamd.socket" \
+          "/etc/systemd/system/"
+        mkdir -p "/etc/systemd/system/rspamd.service.d"
+        cp "$CFG_INSTALL_DIR/configs/rspamd/systemd/rspamd.service.d/override.conf" \
+          "/etc/systemd/system/rspamd.service.d/"
+        ;;
+      opensmtpd)
+        echo 'installing opensmtpd configuration'
+        while [ -z "$EGRESS" ]; do
+          if command -v ip >/dev/null; then
+            _links="$(ip -br link|cut -d " " -f1|tr "\n" " ")"
+          else
+            _links="ip not found "
+          fi
+          read -r -p "Device for outbound email (${_links% }): " EGRESS
+        done
+        cp -r "$CFG_INSTALL_DIR/configs/opensmtpd/etc/"* "/etc/smtpd/" ||
+          _die "failed to install smtpd configuration"
+        _rand="$(openssl rand -hex 16)"
+        sed -Ei "s/HOSTNAME/$HOSTNAME/" '/etc/smtpd/smtpd.conf'
+        sed -Ei "s/EGRESS/$EGRESS/" '/etc/smtpd/smtpd.conf'
+        sed -Ei "s/HEXRANDOM/$_rand/" '/etc/smtpd/smtpd.conf'
+        sed -Ei "s/HOSTNAME/$HOSTNAME/" '/etc/smtpd/mailname'
+        ;;
+      pyrelay-rspamd)
+        echo 'installing pyrelay-rspamd configuration'
+        mkdir -p '/etc/systemd/system/pyrelay-rspamd.service.d/'
+        cp "$CFG_INSTALL_DIR/configs/$_package/pyrelay-rspamd.conf" \
+          '/etc/' ||
+          _die "could not install pyrelay-rspamd config"
+        cp "$CFG_INSTALL_DIR/configs/$_package/override.conf" \
+          '/etc/systemd/system/pyrelay-rspamd.service.d/' ||
+          _die "could not install pyrelay-rspamd override"
+        ;;
+      esac
+      if [ -r "$CFG_INSTALL_DIR/configs/$_package/mtree" ]; then
+        mtree -Uep / <"$CFG_INSTALL_DIR/configs/$_package/mtree" ||
+          _die "failed to set permissions for $_package"
+      fi
+    fi
+  done
+}
+
+_usage() {
+  _script="$(basename "$0")"
+  cat <<EOF
+usage: $_script command [-h hostname]
+commands: installpkgs installconfigs
+EOF
+}
+
+_create_temp_dir
+
+while getopts 'h:' f; do
+  case $f in
+  h) HOSTNAME=$OPTARG ;;
+  *) _die "Unrecognized flag" ;;
+  esac
+done
+
+shift $((OPTIND - 1))
+
+case $1 in
+installpkgs)
+  _install_packages
+  ;;
+installconfigs)
+  _install_configurations
+  ;;
+*) _die "No command specified" ;;
+esac
+# vim: et:ts=2:sw=2
