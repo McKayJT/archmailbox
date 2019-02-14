@@ -1,0 +1,12 @@
+[Unit]
+Description=Rspamd sockets
+
+[Socket]
+SocketUser=_rspamd
+SocketGroup=vmail
+SocketMode=0660
+ListenStream=/run/rspamd/controller.sock
+ListenStream=/run/rspamd/worker.sock
+
+[Install]
+WantedBy=sockets.target
