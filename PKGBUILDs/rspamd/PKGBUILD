@@ -1,0 +1,63 @@
+# Maintainer: John McKay <john AT octet DOT space>
+# Contributor: nfnty <arch AT nfnty DOT se>
+# 
+# shellcheck disable=SC2034,SC2154,SC2164
+pkgname=('rspamd-git')
+_srcname='rspamd'
+pkgdesc='Rapid spam filtering system'
+pkgver=r14184.1550077478.fc55fd21a
+pkgrel=1
+arch=('x86_64')
+url="https://github.com/rspamd/${_srcname}"
+license=('Apache')
+
+depends=('openssl' 'libevent' 'glib2' 'luajit' 'sqlite' 'file' 'icu')
+makedepends=('git' 'cmake' 'pkgconfig' 'ragel' 'ninja')
+provides=("${pkgname[0]%-git}")
+conflicts=("${pkgname[0]%-git}")
+
+source=("${_srcname}::git+${url}.git#commit=fc55fd21a5b3c7c3c31d24f0037f417fc83058c7"
+        "${_srcname}.tmpfile"
+	"${_srcname}.sysuser"
+	"${_srcname}.logrotate")
+sha512sums=('SKIP'
+            'ada12a1ed1b5c3eee3cd2acbee32923decc476b393b8cbc0ba4ef3c8296962b647011569e0cabba14e3ea74bbcd3d999d99d2b87ec9bdc195a5cd3f5901626ed'
+            '30b98cb13baed355456b4ccd9a499478b4c04cd887eceba611d89b868dce9f4ef0230bb1e2b858e2fde3d1279d94af872ff4acd2a192872f4a9c2f61d1ff95f7'
+            '33903b7ce9a9d50978f0cd2cec65269c00aeca80948572492c8f65cca246b18d29ea08502fbf43eef0376ac721b7e000b8618e662b88df53c3aed7b77e9e1237')
+
+pkgver() {
+    cd "${srcdir}/${_srcname}"
+
+    printf 'r%s.%s.%s\n' \
+        "$( git rev-list --count 'HEAD' )" \
+        "$( git log --max-count='1' --pretty='format:%ct' )" \
+        "$( git rev-parse --short 'HEAD' )"
+}
+
+build() {
+    cd "${srcdir}/${_srcname}"
+
+    cmake \
+        -G Ninja \
+        -DNO_SHARED=ON \
+        -DCMAKE_INSTALL_PREFIX='/usr' \
+        -DCONFDIR='/etc/rspamd' \
+        -DRUNDIR='/run/rspamd' \
+        -DRSPAMD_USER='_rspamd' \
+        -DDBDIR='/var/lib/rspamd' \
+        -DLOGDIR='/var/log/rspamd' \
+        -DWANT_SYSTEMD_UNITS='ON' \
+        .
+
+    cmake --build .
+}
+
+package() {
+    cd "${srcdir}/${_srcname}"
+
+    DESTDIR="${pkgdir}/" cmake --build . --target install
+    sed -Ei '/^Runtime/d' "${pkgdir}/usr/lib/systemd/system/${_srcname}.service"
+    install -Dm0644 "../${_srcname}.tmpfile" "${pkgdir}/usr/lib/tmpfiles.d/${_srcname}.conf"
+    install -Dm0644 "../${_srcname}.sysuser" "${pkgdir}/usr/lib/sysusers.d/${_srcname}.conf"
+    install -Dm0644 "../${_srcname}.logrotate" "${pkgdir}/etc/logrotate.d/${_srcname}"
+}
