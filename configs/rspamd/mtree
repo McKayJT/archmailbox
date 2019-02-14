@@ -1,0 +1,44 @@
+# rspamd config permissions
+# working path /
+
+# ./
+/set type=file uname=root gname=root mode=0644 flags=none
+.               type=dir mode=0755 nochange
+
+# ./var
+var             type=dir mode=0755 nochange
+
+# ./var/lib
+lib             type=dir mode=0755 nochange
+
+# ./var/lib/rspamd
+rspamd          type=dir uname=_rspamd gname=_rspamd mode=0755
+
+# ./var/lib
+..
+
+# ./var
+..
+
+# ./
+..
+
+# ./etc
+etc             type=dir mode=0755 nochange
+
+# ./etc/rspamd
+rspamd          type=dir mode=0755 nochange
+
+# ./etc/rspamd/local.d
+local.d         type=dir mode=0755
+    dkim_signing.conf
+    multimap.conf
+    options.inc
+    settings.conf
+    worker-controller.inc
+    worker-fuzzy.inc
+    worker-normal.inc
+    worker-proxy.inc
+
+# ./etc/rspamd/local.d/dkim
+dkim           type=dir uname=_rspamd gname=_rspamd mode=0750
