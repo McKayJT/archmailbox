@@ -1,0 +1,25 @@
+# Maintainer: John McKay
+pkgname=encpipe
+pkgver=0.4.r8.gd8f7281
+pkgrel=1
+pkgdesc="Encrypt data from stdin to stdout with libsodium."
+url="https://github.com/McKayJT/encpipe"
+arch=('x86_64')
+license=('ISC')
+depends=('libsodium')
+makedepends=('git')
+source=("git+https://github.com/MckayJT/encpipe.git#commit=d8f728176ed53ce7b23b9dcc48294a4959105219")
+sha256sums=('SKIP')
+
+build() {
+  cd "${srcdir}/${pkgname}"
+  make
+}
+
+package() {
+  cd "${srcdir}/${pkgname}"
+  make DESTDIR="${pkgdir}" PREFIX="${pkgdir}/usr" install
+  install -Dm644 encpipe.1 "$pkgdir/usr/share/man/man1/encpipe.1"
+}
+
+
