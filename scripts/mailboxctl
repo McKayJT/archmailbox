@@ -292,7 +292,7 @@ _install_dkim() {
     mkdir -p "/var/lib/rspamd/dkim" ||
       _die "could not find or create output directory for rspamd configuration"
     chown '_rspamd:_rspamd' '/var/lib/rspamd/dkim'
-    chmod '640' '/var/lib/rspamd/dkim'
+    chmod '750' '/var/lib/rspamd/dkim'
   fi
   _files="$(ls "$_output_dir"/*.key)"
   for _file in $_files; do
