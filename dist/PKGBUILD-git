@@ -25,4 +25,6 @@ package() {
 	make DESTDIR="$pkgdir/" install
 	install -Dm644 UNLICENSE \
 		"$pkgdir/usr/share/licenses/archmailbox/UNLICENSE"
+	install -Dm644 'dist/archmailbox.sysusers' \
+		"$pkgdir/usr/lib/sysusers.d/archmailbox.conf"
 }
