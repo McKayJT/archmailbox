@@ -1,0 +1,28 @@
+# Maintainer: adenosine <adenosine3p@gmail.com>
+pkgname=pyrelay-rspamd
+pkgver=0.1
+pkgrel=1
+pkgdesc="Proxy to dkim sign messages using rspamd"
+arch=('any')
+url="https://github.com/McKayJT/pyrelay-rspamd"
+license=('custom:UNLICENSE')
+depends=('python'
+	 'python-aiosmtplib'
+	 'python-aiosmtpd'
+	 'python-aiohttp'
+	 'rspamd')
+backup=('etc/pyrelay-rspamd.conf')
+source=('https://github.com/McKayJT/pyrelay-rspamd/archive/v0.1.tar.gz')
+sha256sums=('13353c010ec129b296bb5ba6f5d7441d074a6b6aa6b22fc5269e6e2d368a79d0')
+
+package() {
+	cd "$srcdir/$pkgname-$pkgver"
+	install -Dm755 pyrelay-rspamd "$pkgdir"/usr/bin/pyrelay-rspamd
+	install -Dm644 pyrelay-rspamd.conf.example "$pkgdir"/etc/pyrelay-rspamd.conf
+	sed -i -Ee 's/#type.+/type=syslog/' "$pkgdir"/etc/pyrelay-rspamd.conf
+	install -Dm644 UNLICENSE "$pkgdir/usr/share/licenses/$pkgname/UNLICENSE"
+	install -Dm644 rspamd-settings.local.example \
+		"$pkgdir"/usr/share/doc/pyrelay-rspamd/rspamd-settings.local.example
+	install -Dm644 pyrelay-rspamd.service \
+		"$pkgdir"/usr/lib/systemd/system/pyrelay-rspamd.service
+}
