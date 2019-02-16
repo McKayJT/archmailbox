@@ -35,19 +35,18 @@ simplify my future efforts.
 
 * Script to manage database of email users and domains
 * Script to backup and restore configuration
-* dovecot, rspamd, and OpenSMTPD configuration files
+* dovecot, rspamd, pyrelay-rspamd, and OpenSMTPD configuration files
+* Automated build and install of required packages
 
 ## Semi-working items
 
 * PKGBUILDs for all the projects needed for the server
+* Installation of initial configuration
 
 ## Non-working items
 
 * acme.sh configuration and installation
-* pyrelay-rspamd configuration
 * Backup and restore of email
-* Automated build and install of required packages
-* Installation of initial configuration
 
 # Software Used
 
