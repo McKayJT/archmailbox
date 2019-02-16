@@ -9,6 +9,8 @@ etc nochange
 
 # ./etc/acme
 acme mode=0700
+  fullchain.cer type=file mode=0600
+  private.key type=file mode=0600
 
 # ./etc/acme/backup
 backup mode=0700

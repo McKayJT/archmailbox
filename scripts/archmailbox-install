@@ -2,7 +2,7 @@
 
 all_packages=('python-atpublic' 'python-aiosmtpd'
   'python-aiosmtplib' 'rspamd' 'encpipe'
-  'opensmtpd' 'opensmtpd-sqlite'
+  'opensmtpd' 'opensmtpd-sqlite' 'acme.sh'
   'knot-resolver' 'pyrelay-rspamd'
   'mtree' 'dovecot' 'pigeonhole')
 
@@ -133,6 +133,25 @@ _install_configurations() {
         cp "$CFG_INSTALL_DIR/configs/$_package/override.conf" \
           '/etc/systemd/system/pyrelay-rspamd.service.d/' ||
           _die "could not install pyrelay-rspamd override"
+        ;;
+      acme.sh)
+        echo 'installing acme.sh configuration'
+        mkdir -p '/etc/acme/backup'
+        touch '/etc/acme/private.key'
+        touch '/etc/acme/fullchain.cer'
+        mkdir -p '/var/lib/acme/deploy'
+        cp "$CFG_INSTALL_DIR/configs/acme.sh/var/mailbox.sh" \
+          '/var/lib/acme/deploy/' ||
+          _die 'could not install acme.sh deploy script'
+        cp "$CFG_INSTALL_DIR/configs/acme.sh/systemd/acme-renew.service" \
+          '/etc/systemd/system/' ||
+          _die 'could not install acme.sh service file'
+        cp "$CFG_INSTALL_DIR/configs/acme.sh/systemd/acme-renew.timer" \
+          '/etc/systemd/system/' ||
+          _die 'could not install acme.sh timer'
+        systemctl daemon-reload
+        systemctl enable acme-renew.timer --now ||
+          _die 'could not etable acme.sh renewal timer'
         ;;
       esac
       if [ -r "$CFG_INSTALL_DIR/configs/$_package/mtree" ]; then
