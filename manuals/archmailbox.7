@@ -1,0 +1,86 @@
+.Dd February 16 2019
+.Dt ARCHMAILBOX 7
+.Os
+.Sh NAME
+.Nm archmailbox
+.Nd archmailbox project
+.Sh DESCRIPTION
+The
+.Nm
+provides a number of different programs and
+configurations to allow for easy mail server setup. This manual page
+documents the programs and the configuration that is used in the default
+configuration.
+.Pp
+.Sh BASIC LAYOUT
+.Nm
+uses
+.Xr smtpd 8
+for mail delivery and receipt.
+Incoming mail is filtered using
+.Xr rspamd 8
+using the
+.Xr rspamc 1
+command before being delivered to
+.Xr dovecot 1
+for delivery to the local mail store.
+Outgoing mail is received by
+.Xr smtpd 8
+which then forwards the mail to
+.Cm pyrelay-rspamd
+which uses
+.Xr rspamd 8
+to DKIM sign the messages.
+.Cm pyrelay-rspamd
+Then sends the messages back to
+.Xr smtpd 8
+on a trusted port which then relays the mail to the destination mail server.
+.Pp
+Mail is stored locally in the maildir format compressed using
+.Xr xz 1
+compression.
+It is subject to a quota default quota of 15GB per user and an
+message size limit of 100MB.
+.Pp
+Mail users are virtual and are stored in the
+.Pa /etc/smtpd/smtp.sqlite
+database. The passwords are hashed using the Argon2 password
+hashing scheme.
+.Sh COMMANDS
+.Nm
+comes with a number of scripts to ease administration of the
+server.
+.Bl -tag
+.It Xr archmailbox-install 8
+used to install the packages and initial configuration files
+.It Xr mailboxctl 8
+used to manage the configuration, as well as backup and restore
+the server.
+.It Xr manage-mail-users 8
+used to manage the SQLite user database.
+.El
+.Sh SECURITY
+.Nm
+attempts to be secure by default.
+.Xr dovecot 1
+will deliver new mail using the
+.Li vmail
+user.
+This user is also given access to communicate with
+.Xr rspamd 8
+via unix domain socket.
+The
+.Xr dovecot 1
+authentication process uses the smtpd group to allow access to the
+user configuration database.
+.Pp
+The _rspamd user has control over DKIM keys stored in
+.Pa /var/lib/rspamd/dkim .
+No other user is given access to the keys.
+.Sh SEE ALSO
+.Xr archmailbox-install 8 ,
+.Xr mailboxctl 8 ,
+.Xr manage-mail-users 8 ,
+.Xr dovecot 1 ,
+.Xr smtpd 8 ,
+.Xr rspamd 8

@@ -1,0 +1,31 @@
+.Dd Februrary 16 2019
+.Dt ARCHMAILBOX-INSTALL 8
+.Os
+.Sh NAME
+.Nm archmailbox-install
+.Nd initial archmailbox installation
+.Sh SYNOPSIS
+.Nm archmailbox-install
+.Ar installpkgs | installconfigs
+.Sh DESCRIPTION
+.Nm
+installs the initial configuration and packages for the
+.Xr archmailbox 7
+project.
+.Pp
+.Cm installpkgs
+must be run as a non-root user with sudo permissions.
+.Cm installconfigs
+must be run as root.
+.Sh ENVIRONMENT
+.Bl -tag -width HOSTNAME
+.It Ev HOSTNAME
+fqdn of current host
+.It Ev EGRESS
+network interface to listen for incoming mail
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh EXAMPLES
+.Dl $ archmailbox-install installpkgs
+.Dl # archmailbox-install installconfigs

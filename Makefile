@@ -19,5 +19,9 @@ install:
 		$(DESTDIR)$(mandir)/man8/mailboxctl.8
 	install -Dm644 manuals/manage-mail-users.8 \
 		$(DESTDIR)$(mandir)/man8/manage-mail-users.8
+	install -Dm644 manuals/archmailbox-install.8 \
+		$(DESTDIR)$(mandir)/man8/archmailbox-install.8
+	install -Dm644 manuals/archmailbox.7 \
+		$(DESTDIR)$(mandir)/man7/archmailbox.7
 
 .PHONY: install
