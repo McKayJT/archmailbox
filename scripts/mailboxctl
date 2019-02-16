@@ -3,7 +3,7 @@
 # debugging cruft
 # set -x
 
-AVAIL_MODULES="dovecot rspamd smtpd dkim"
+AVAIL_MODULES="dovecot rspamd smtpd dkim acme"
 MODULES="$AVAIL_MODULES"
 TEMP_DIR=""
 FILENAME="backup.tar.xz.encpipe"
@@ -57,6 +57,7 @@ _mod_cfg() {
     rspamd) echo 'rspamd' '/etc/rspamd' 'local.d' ;;
     smtpd) echo 'smtpd' '/etc' 'smtpd' ;;
     dkim) echo 'dkim' '/var/lib/rspamd' 'dkim' ;;
+    acme) echo 'acme' '/var/lib' 'acme' ;;
     *) _die 'invalid module' ;;
   esac
 }
@@ -303,6 +304,65 @@ _install_dkim() {
   done
 }
 
+_gen_acme_certificate() {
+  _check_is_root yes
+
+  while [ -z "$DOMAIN" ]; do
+    printf 'Enter fully qualified domain: '
+    read -r DOMAIN
+  done
+
+  while [ -z "$EMAIL" ]; do
+    printf "Enter email for Let's Encrypt account: "
+    read -r EMAIL
+  done
+
+  echo "Setting up Let's Encrypt for domain $DOMAIN with emails going to $EMAIL"
+  printf "Are you sure? (type 'yes' to continue) "
+  read -r _confirmation
+  if [ "$_confirmation" != 'yes' ]; then
+    exit 0
+  fi
+
+  if [ ! -r '/var/lib/acme/account.conf' ]; then
+    echo "Setting up new Let's Encrypt account"
+    acme.sh --home /var/lib/acme --register-account --accountemail "$EMAIL" ||
+      _die "Could not set up Let's Encrypt account"
+  else
+    echo "Let's Encrypt account already exists"
+    echo "If you wish to update your email run"
+    echo "acme.sh --home /var/lib/acme --update-account --accountemail $EMAIL"
+  fi
+
+  acme.sh --home /var/lib/acme --alpn --issue -d "$DOMAIN" ||
+    _die "Could not issue Let's Encrypt certificate"
+  acme.sh --home /var/lib/acme --deploy --deploy-hook mailbox -d "$DOMAIN" ||
+    _die "Could not deploy Let's Encrypt certificate"
+
+  echo "Let's Encrypt cerificate generation successful."
+  echo "Please backup your configuration now."
+}
+
+_deploy_certificate() {
+  _check_is_root yes
+
+  if [ ! -r '/var/lib/acme/account.conf' ]; then
+    echo "no acme.sh configuration found"
+    exit 1
+  fi
+
+  acme.sh --home /var/lib/acme --list ||
+    _die "failed to generate certificate list"
+
+  while [ -z "$DOMAIN" ]; do
+    printf "Which domain to use? "
+    read -r DOMAIN
+  done
+
+  acme.sh --home /var/lib/acme --deploy --delpoy-hook mailbox -d "$DOMAIN" ||
+    _die "Could not deploy certificate"
+}
+
 _usage() {
   _script="$(basename "$0")"
   cat <<EOF
@@ -313,6 +373,8 @@ commands:
 	restoreconfig: restore selected modules
 	gendkim: generate dkim configuration for domain
 	installdkim: install dkim configuration
+	gencert: generate Let's Encrypt certificate
+	deploycert: deploy certificate after restore
 modules:
 	$AVAIL_MODULES
 	if no modules specified, default to all
@@ -342,6 +404,8 @@ case $1 in
   restoreconfig) _restore_modules "$MODULES" ;;
   gendkim) _generate_dkim ;;
   installdkim) _install_dkim ;;
+  gencert) _gen_acme_certificate ;;
+  deploycert) _deploy_certificate ;;
   *) _die "Unrecognized command $1" usage ;;
 esac
 
