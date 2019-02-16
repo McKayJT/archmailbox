@@ -1,0 +1,36 @@
+# working path /
+
+# ./
+/set uname=root gname=root type=dir
+. type=dir nochange
+
+# ./etc
+etc nochange
+
+# ./etc/acme
+acme mode=0700
+
+# ./etc/acme/backup
+backup mode=0700
+
+# ./etc/acme
+..
+
+# ./etc
+..
+
+# ./
+..
+
+# ./var
+var nochange
+
+# ./var/lib
+lib nochange
+
+# ./var/lib/acme
+acme mode=0700
+
+# ./var/lib/acme/deploy
+deploy mode=0700
+  mailbox.sh type=file mode=0644
