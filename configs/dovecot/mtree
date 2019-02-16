@@ -63,10 +63,16 @@ dovecot         type=dir mode=0755 nochange
 ..
 
 # ./var
-var             type=dir
+var             type=dir nochange
+
+# ./var/vmail
+vmail           type=dir uname=vmail gname=vmail mode=0755
+
+# ./var
+..
 
 # ./var/lib
-lib             type=dir
+lib             type=dir nochange
 
 # ./var/lib/dovecot
 dovecot         type=dir
