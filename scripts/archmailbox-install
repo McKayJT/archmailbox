@@ -141,6 +141,16 @@ _install_configurations() {
       fi
     fi
   done
+  cat <<EOF
+Initial configuration complete!
+Next steps:
+  * use manage-mail-users to create an initial database
+  * add virtual domain(s)
+  * add users
+  * create dkim keys for virtual domains with mailboxctl
+  * create certificates in /etc/acme
+  * enable services
+EOF
 }
 
 _usage() {
