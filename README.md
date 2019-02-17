@@ -37,16 +37,18 @@ simplify my future efforts.
 * Script to backup and restore configuration
 * dovecot, rspamd, pyrelay-rspamd, and OpenSMTPD configuration files
 * Automated build and install of required packages
+* acme.sh configuration and installation
+* Installation of initial configuration
+* PKGBUILDs for all the projects needed for the server
 
 ## Semi-working items
 
-* PKGBUILDs for all the projects needed for the server
 * Installation of initial configuration
 
 ## Non-working items
 
-* acme.sh configuration and installation
 * Backup and restore of email
+  * Maybe this gets skipped? Too complex for a one-size-fits-all approach.
 
 # Software Used
 
