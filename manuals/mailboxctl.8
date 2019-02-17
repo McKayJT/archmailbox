@@ -1,4 +1,4 @@
-.Dd February 16, 2019
+.Dd February 17, 2019
 .Dt MAILBOXCTL 8
 .Os
 .Sh NAME
@@ -138,6 +138,13 @@ using this command.
 Prior certificates are automatically backed up when new
 ones are deployed after renewal.
 The certificate backups are never rotated and are kept forever.
+.It Ic enable
+Enables and starts all archmailbox services.
+This command does a basic sanity check to ensure there are
+configuration files required but does not check validity
+of the configuration.
+.It Ic disable
+Disables and stops all archmailbox services.
 .El
 .Sh FILES
 .Pa backup.tar.xz.encpipe
