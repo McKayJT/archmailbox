@@ -364,7 +364,18 @@ _deploy_certificate() {
 }
 
 _enable_services() {
+  _check_is_root yes
   echo "Starting archmailbox services..."
+  if [ ! -r '/etc/smtpd/smtp.sqlite' ]; then
+    _die "No OpenSMTPD user configuration generated"
+  fi
+  if [ ! -s '/etc/acme/fullchain.cer' ] ||
+     [ ! -s '/etc/acme/private.key' ]; then
+    _die "Let's encrypt certificates not generated"
+  fi
+  if [ -z "$(ls -A /etc/rspamd/local.d/dkim)" ]; then
+    echo "Warning! No dkim configuration found" 1>&2
+  fi
   systemctl enable --now archmailbox-nftables
   systemctl enable --now rspamd.socket
   systemctl enable --now kresd.socket
@@ -374,6 +385,7 @@ _enable_services() {
 }
 
 _disable_services() {
+  _check_is_root yes
   echo "Stopping archmailbox services..."
   systemctl disable --now archmailbox-nftables
   systemctl disable --now rspamd.socket
