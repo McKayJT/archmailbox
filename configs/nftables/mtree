@@ -1,0 +1,16 @@
+# path /
+/set uname=root gname=root type=file
+
+# ./
+. type=dir nochange
+
+# ./etc
+etc type=dir nochange
+  archmailbox-nftables.conf mode=0644
+
+#./etc/systemd
+systemd type=dir nochange
+
+#./etc/systemd/system
+system type=dir nochange
+  archmailbox-nftables.service mode=0644
