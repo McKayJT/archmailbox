@@ -1,27 +1,24 @@
-.Dd $Mdocdate: February 11 2019 $ 
+.Dd February 16, 2019
 .Dt MAILBOXCTL 8
-.Os 
-.Sh NAME 
-.Nm mailboxctl 
+.Os
+.Sh NAME
+.Nm mailboxctl
 .Nd control mail configuration
-.\" .Sh LIBRARY 
-.\" For sections 2, 3, and 9 only. 
-.\" Not used in OpenBSD. 
-.Sh SYNOPSIS 
-.Nm mailboxctl 
+.Sh SYNOPSIS
+.Nm mailboxctl
 .Op Fl h
-.Op Fl f Ar filename 
-.Op Fl p Ar password 
-.Op Fl m Ar modules 
-.Op Fl d Ar domain 
+.Op Fl f Ar filename
+.Op Fl p Ar password
+.Op Fl m Ar modules
+.Op Fl d Ar domain
 .Ar command
-.Sh DESCRIPTION 
-The 
-.Nm 
+.Sh DESCRIPTION
+The
+.Nm
 script controls configuration of the archmailbox server.
 It also is used to create and restore backups of the server.
 .Sh COMMANDS
-.Bl -tag
+.Bl -tag -width ident
 .It Ic backupconfig
 A backup of the selected modules is generated.
 The backup is encrypted using
@@ -30,7 +27,7 @@ with the password from the
 .Fl p
 flag or the one enterted during interactive use.
 The module list may be any of
-.Bl -tag
+.Bl -tag -width ident
 .It Ar dovecot
 configuration files in
 .Pa /etc/dovecot
@@ -44,8 +41,11 @@ along with the sqlite database of mail users
 .It Ar dkim
 dkim signing keys from
 .Pa /var/lib/rspamd/dkim
+.It Ar acme
+acme configuration files and certificates from
+.Pa /var/lib/acme
 .El
-
+.Pp
 If no module list is specified all modules are included in the backup.
 The module list is separated using a space between each module to be included.
 .It Ic restoreconfig
@@ -54,7 +54,7 @@ restore a configuration generated using
 The module list must be the same as was used to create the backup.
 Importantly, if no module list is specified it will attempt to restore
 all modules that are supported and not all modules that are in the backup file.
-
+.Pp
 This command will erase all files in the paths for the specified module.
 It is recommended to save the current configuration first before using.
 .It Ic gendkim
@@ -64,11 +64,11 @@ The first is a low security RSA key of bit length 1024 for legacy systems.
 The second is a high security ed25519 key for modern systems.
 This will set up two selectors and the configuration generated will sign
 email using both keys with different selectors.
-
+.Pp
 The generated configuration files will be located under a new directory
 .Pa dkim_domain.tld
 in the current working path.
-
+.Pp
 While
 .Ic installdkim
 can install the configuration files and key, setting up DNS entries for
@@ -80,20 +80,67 @@ and will need to be added using whatever interface your DNS server provides.
 .It Ic installdkim
 A generated set of configuration files and DKIM keys will be installed in
 the current configuration.
-
+.Pp
 It will refuse to overwrite an existing configuration for a domain.
 The existing configuration will need to be removed from
 .Pa /etc/rspamd/local.d/dkim
 and
 .Pa /var/lib/rspamd/dkim
 if the selectors and DKIM keys are to changed from an existing configuration.
-
+.Pp
 Once the installation has been completed please remove the files from
 .Pa dkim_domain.tld
 as they contain sensitive key material.
+.It Ic gencert
+Generates a Let's Encrypt certificate for the mail server
+and installs it under
+.Pa /var/lib/acme .
+It also will use
+.Ic deploycert
+to deploy the certificate.
+A
+.Xr systemd 1
+timer is set up during installation to automatically renew
+all acme.sh issued certificates when needed.
+.Pp
+This command will use the alpn stand-alone mode of acme.sh.
+No other service can be listening on port 443 or it will fail.
+Please refer to the acme.sh wiki at
+.Lk https://github.com/Neilpang/acme.sh/wiki
+for instructions on how to use other authentication methods
+including dns and integration with an existing web server.
+.It Ic deploycert
+Deploys a certificate for use with
+.Xr archmailbox 7
+into
+.Pa /etc/acme .
+.Pp
+Generally it is not needed to use this command
+separately from
+.Ic gencert ,
+however it is needed when restoring from backup.
+It can also be used if port 443 is not available for acme.sh
+to use stand-alone mode.
+In this case the certificate can be generated with acme.sh
+with custom parameters, then deployed.
+Be aware that
+.Xr smtpd 8
+only accepts RSA certificates if a custom issued one is to
+be used.
+.Pp
+The default configuration only allows for one certificate
+for the server.
+However, acme.sh does not have this limitation and you
+can safely issue more certificates by calling
+.Dl acme.sh --home /var/lib/acme --issue ...
+as long as you do not deploy more than one
+using this command.
+Prior certificates are automatically backed up when new
+ones are deployed after renewal.
+The certificate backups are never rotated and are kept forever.
 .El
-.Sh FILES 
+.Sh FILES
 .Pa backup.tar.xz.encpipe
 is used as the default file for configuration backup and restore
-.Sh EXIT STATUS 
+.Sh EXIT STATUS
 .Ex -std
