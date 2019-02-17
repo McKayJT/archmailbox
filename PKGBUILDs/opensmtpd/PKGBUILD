@@ -5,19 +5,21 @@
 
 pkgname=opensmtpd-libressl
 _pkgname=opensmtpd
+_extraver=6.4.0
 pkgver=6.4.1p2
 pkgrel=1
 pkgdesc='Free implementation of the server-side SMTP protocol'
 arch=('x86_64')
 url='https://www.opensmtpd.org/'
 license=('custom')
-depends=('pam' 'libsodium')
+depends=('pam' 'libsodium' 'sqlite')
 makedepends=('cmake' 'ninja')
 provides=('smtp-server' 'smtp-forwarder' 'opensmtpd')
 conflicts=('smtp-server' 'smtp-forwarder')
-backup=('etc/smtpd/smtpd.conf' 'etc/smtpd/aliases')
+backup=('etc/smtpd/smtpd.conf' 'etc/smtpd/aliases' 'etc/smtpd/sqlite.conf')
 options=('emptydirs')
 source=("https://www.opensmtpd.org/archives/$_pkgname-$pkgver.tar.gz"
+	"https://www.opensmtpd.org/archives/opensmtpd-extras-$_extraver.tar.gz"
 	'https://www.opensmtpd.org/archives/libasr-1.0.2.tar.gz'
 	'https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-2.9.0.tar.gz'
 	'https://github.com/libevent/libevent/releases/download/release-2.1.8-stable/libevent-2.1.8-stable.tar.gz'
@@ -26,6 +28,7 @@ source=("https://www.opensmtpd.org/archives/$_pkgname-$pkgver.tar.gz"
         'smtpd.socket'
         'argon2.patch')
 sha256sums=('b69b84934bcc4893ca334504411cd47f86ea04ac5e971a5746d44c473ac5f732'
+            'cb66986b7c0d0113210f4fb9ca1447b7f50ca088165e6ca61b9015ff0f2d6226'
             'a6f5d1c6306938156da3427525572b9b16c1e6be6c69845d390bb63f41a58b34'
             'eb5f298408b723f11a0ca0192c122ecb79b4855bfdf7eea183a6264296a13cf4'
             '965cc5a8bb46ce4199a47e9b2c9e1cae3b137e8356ffdad6d94d3b9069b71dc2'
@@ -36,6 +39,8 @@ sha256sums=('b69b84934bcc4893ca334504411cd47f86ea04ac5e971a5746d44c473ac5f732'
 
 prepare() {
   sed -ri 's,/etc/mail,/etc/smtpd,g' "$_pkgname-$pkgver/smtpd/smtpd.conf"
+  sed -ri 's,/etc/mail,/etc/smtpd,g' \
+    "opensmtpd-extras-$_extraver/extras/tables/table-sqlite/sqlite.conf"
   cd $_pkgname-$pkgver
   patch -p1 -i ../argon2.patch
   mkdir -p "$srcdir/libs"
@@ -89,6 +94,23 @@ build() {
     --with-libs='-lsodium -lcrypto' \
 
   make
+
+  #opensmptd-extras
+  cd "$srcdir/opensmtpd-extras-$_extraver"
+
+  ./configure \
+    --prefix=/usr \
+    --sysconfdir=/etc/smtpd \
+    --sbindir=/usr/bin \
+    --with-mantype=doc \
+    --libexecdir=/usr/lib/smtpd \
+    --with-path-empty=/var/empty \
+    --with-user-smtpd=smtpd \
+    --with-libevent="$srcdir/libs/usr" \
+    --with-libssl="$srcdir/libs/usr" \
+    --with-table-sqlite
+
+  make
 }
 
 package() {
@@ -109,4 +131,12 @@ package() {
 
   # install an empty aliases file (used by the default config)
   install -Dm644 /dev/null "$pkgdir/etc/smtpd/aliases"
+
+  cd "../opensmtpd-extras-$_extraver"
+
+  make DESTDIR="$pkgdir/" install
+
+  # install sqlite.conf
+  install -Dm644 "$srcdir/opensmtpd-extras-$_extraver/extras/tables/table-sqlite/sqlite.conf" \
+    "$pkgdir/etc/smtpd/sqlite.conf"
 }

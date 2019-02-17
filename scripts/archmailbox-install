@@ -2,7 +2,7 @@
 
 all_packages=('python-atpublic' 'python-aiosmtpd'
   'python-aiosmtplib' 'rspamd' 'encpipe'
-  'opensmtpd' 'opensmtpd-sqlite' 'acme.sh'
+  'opensmtpd' 'acme.sh'
   'knot-resolver' 'pyrelay-rspamd'
   'mtree' 'dovecot' 'pigeonhole')
 
