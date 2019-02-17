@@ -18,16 +18,16 @@ The
 script controls configuration of the archmailbox server.
 It also is used to create and restore backups of the server.
 .Sh COMMANDS
-.Bl -tag -width ident
+.Bl -tag -width indent
 .It Ic backupconfig
 A backup of the selected modules is generated.
 The backup is encrypted using
 .Xr encpipe 1
 with the password from the
 .Fl p
-flag or the one enterted during interactive use.
+flag or the one entered during interactive use.
 The module list may be any of
-.Bl -tag -width ident
+.Bl -tag -width indent
 .It Ar dovecot
 configuration files in
 .Pa /etc/dovecot
@@ -37,7 +37,7 @@ configuration files in
 .It Ar smtpd
 configuration files in
 .Pa /etc/smtpd
-along with the sqlite database of mail users
+along with the SQLite database of mail users
 .It Ar dkim
 dkim signing keys from
 .Pa /var/lib/rspamd/dkim
