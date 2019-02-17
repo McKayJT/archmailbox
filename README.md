@@ -40,10 +40,11 @@ simplify my future efforts.
 * acme.sh configuration and installation
 * Installation of initial configuration
 * PKGBUILDs for all the projects needed for the server
+* Installation of initial configuration
 
 ## Semi-working items
 
-* Installation of initial configuration
+* None!
 
 ## Non-working items
 
