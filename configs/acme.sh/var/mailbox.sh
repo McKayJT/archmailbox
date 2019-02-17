@@ -49,8 +49,12 @@ mailbox_deploy() {
 
   # restart daemons
   _debug "restart daemons"
-  systemctl restart dovecot
-  systemctl restart smtpd
+  if systemctl is-enabled dovecot; then
+    systemctl restart dovecot
+  fi
+  if systemctl is-enabled smtpd; then
+    systemctl restart smtpd
+  fi
 
   return 0
 }
