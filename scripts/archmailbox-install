@@ -2,7 +2,7 @@
 
 all_packages=('python-atpublic' 'python-aiosmtpd'
   'python-aiosmtplib' 'rspamd' 'encpipe'
-  'opensmtpd' 'acme.sh'
+  'opensmtpd' 'acme.sh' 'nftables'
   'knot-resolver' 'pyrelay-rspamd'
   'mtree' 'dovecot' 'pigeonhole')
 
@@ -152,6 +152,16 @@ _install_configurations() {
         systemctl daemon-reload
         systemctl enable acme-renew.timer --now ||
           _die 'could not etable acme.sh renewal timer'
+        ;;
+      nftables)
+        echo 'installing nftables configuration'
+        cp "$CFG_INSTALL_DIR/configs/nftables/archmailbox-nftables.conf" \
+          '/etc/archmailbox-nftables.conf' ||
+          _die 'could not install nftables configuration'
+        cp "$CFG_INSTALL_DIR/configs/nftables/archmailbox-nftables.service" \
+          '/etc/systemd/system/' ||
+          _die 'could not install nftables service'
+        systemctl daemon-reload
         ;;
       esac
       if [ -r "$CFG_INSTALL_DIR/configs/$_package/mtree" ]; then
