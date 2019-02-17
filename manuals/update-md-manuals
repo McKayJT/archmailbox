@@ -1,0 +1,8 @@
+#!/bin/sh
+manuals=$(ls -- *.?)
+
+for manual in $manuals; do
+  mandoc -Tmarkdown "$manual" >"markdown/$manual.md"
+done
+
+# vim: sw=2:ts=2:et
