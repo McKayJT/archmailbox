@@ -91,10 +91,22 @@ user configuration database.
 The _rspamd user has control over DKIM keys stored in
 .Pa /var/lib/rspamd/dkim .
 No other user is given access to the keys.
+.Pp
+The ports used for dkim signing are protected against malicious
+users with a simple nftables based rule set.
+It uses the table dkim_filter for both ip and ip6.
+.Pp
+The default nftables service included with the nftables package
+deletes all rules and then replaces them with the rules in
+.Pa /etc/nftables.conf .
+If this service is being used add an include of
+.Pa /etc/archmailbox-nftables.conf
+in this file and disable the archmailbox\&-\&nftables service.
 .Sh SEE ALSO
 .Xr dovecot 1 ,
 .Xr archmailbox-install 8 ,
 .Xr mailboxctl 8 ,
 .Xr manage-mail-users 8 ,
+.Xr nft 8 ,
 .Xr rspamd 8 ,
 .Xr smtpd 8
