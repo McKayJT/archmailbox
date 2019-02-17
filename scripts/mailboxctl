@@ -363,6 +363,28 @@ _deploy_certificate() {
     _die "Could not deploy certificate"
 }
 
+_enable_services() {
+  echo "Starting archmailbox services..."
+  systemctl enable --now archmailbox-nftables
+  systemctl enable --now rspamd.socket
+  systemctl enable --now kresd.socket
+  systemctl enable --now pyrelay-rspamd
+  systemctl enable --now dovecot
+  systemctl enable --now smtpd
+}
+
+_disable_services() {
+  echo "Stopping archmailbox services..."
+  systemctl disable --now archmailbox-nftables
+  systemctl disable --now rspamd.socket
+  systemctl stop rspamd.service
+  systemctl disable --now kresd.socket
+  systemctl stop kresd@*.service
+  systemctl disable --now pyrelay-rspamd
+  systemctl disable --now dovecot
+  systemctl disable --now smtpd
+}
+
 _usage() {
   _script="$(basename "$0")"
   cat <<EOF
@@ -375,6 +397,8 @@ commands:
 	installdkim: install dkim configuration
 	gencert: generate Let's Encrypt certificate
 	deploycert: deploy certificate after restore
+	enable: start and enable all services
+	disable: stop and disable all services
 modules:
 	$AVAIL_MODULES
 	if no modules specified, default to all
@@ -406,6 +430,8 @@ case $1 in
   installdkim) _install_dkim ;;
   gencert) _gen_acme_certificate ;;
   deploycert) _deploy_certificate ;;
+  enable) _enable_services ;;
+  disable) _disable_services ;;
   *) _die "Unrecognized command $1" usage ;;
 esac
 
