@@ -1,0 +1,58 @@
+.Dd February 19, 2019
+.Dt TREESUTIL 1
+.Os
+.Sh NAME
+.Nm treesutil
+.Nd trees plugin helper
+.Sh SYNOPSIS
+.Nm treesutil
+.Op Fl v
+.Fl c | p | s
+.Nm treesutil
+.Fl h
+.Sh DESCRIPTION
+The
+.Nm
+utility helps create and manage the key data used by the trees
+plugin for
+.Xr dovecot 1 .
+It also can create ed25519 key pairs.
+In general it takes null delimited input from standard input
+and writes null delimited input to standard output.
+.Pp
+The arguments are as follows:
+.Bl -tag -width indent
+.It Fl v
+Debugging output is written to standard error.
+This option is insecure as it will write private key data
+and should only be used when debugging the program.
+.It Fl c
+Create a user.
+Takes as input the password that is to be used from the user.
+Prints the public key, salt, nonce, and locked private key to
+standard output delimited by null characters.
+.It Fl p
+Change a password.
+Takes an input the public key, salt, nonce, locked private key
+in hex format, the old password and the new password.
+These are all delimited with null characters.
+The output is the same as the
+.Fl c
+flag.
+.It Fl s
+Create ed25519 key pair.
+Takes no inputs.
+Output is base64 encoded seed string and public key separated
+with a space with a newline at the end.
+.It Fl h
+Print short help message.
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh EXAMPLES
+Create a new user entry, then change the password
+.Bd -literal -offset indent
+$ echo -n "password" | treesutil -c >user.data
+$ echo -en "password\\0newpassword" >>user.data
+$ treesutil -p <user.data >newuser.data
+.Ed

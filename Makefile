@@ -32,5 +32,7 @@ install: all
 		$(DESTDIR)$(mandir)/man8/archmailbox-install.8
 	install -Dm644 manuals/archmailbox.7 \
 		$(DESTDIR)$(mandir)/man7/archmailbox.7
+	install -Dm644 manuals/treesutil.1 \
+		$(DESTDIR)$(mandir)/man1/treesutil.1
 
 .PHONY: install all
