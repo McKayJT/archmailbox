@@ -1,12 +1,21 @@
+CFLAGS ?= -O2 $(shell pkg-config --cflags libsodium)
+LDFLAGS += $(shell pkg-config --libs libsodium)
 prefix ?= /usr
 datadir ?= $(prefix)/share
 bindir ?= $(prefix)/bin
 mandir ?= $(datadir)/man
 
-install:
+src/treesutil:
+	$(CC) $(CFLAGS) -o src/treesutil src/treesutil.c $(LDFLAGS)
+
+all: src/treesutil
+
+install: all
 	mkdir -p $(DESTDIR)$(datadir)/archmailbox
 	cp -r PKGBUILDs $(DESTDIR)$(datadir)/archmailbox
 	cp -r configs $(DESTDIR)$(datadir)/archmailbox
+	install -Dm755 src/treesutil \
+		$(DESTDIR)$(bindir)/treesutil
 	install -Dm755 scripts/eddsatool \
 		$(DESTDIR)$(bindir)/eddsatool
 	install -Dm755 scripts/mailboxctl \
@@ -24,4 +33,4 @@ install:
 	install -Dm644 manuals/archmailbox.7 \
 		$(DESTDIR)$(mandir)/man7/archmailbox.7
 
-.PHONY: install
+.PHONY: install all

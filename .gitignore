@@ -1,3 +1,4 @@
 dist/*.xz
 dist/archmailbox
 dist/PKGBUILD
+src/treesutil
