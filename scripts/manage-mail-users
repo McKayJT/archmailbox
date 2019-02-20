@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 if [ -z "$SMTPD_DIRECTORY" ]; then
   SMTPD_DIRECTORY='/etc/smtpd'
@@ -10,31 +10,55 @@ fi
 
 SQL_DB_PATH="$SMTPD_DIRECTORY/$SQL_FILE"
 
+# run sql query, preventing bobby tables from being a problem
+_run_sql() {
+  if [ "$#" -lt 2 ]; then
+    if ! echo "$1" | sqlite3 "$SQL_DB_PATH"; then
+      echo "database query fails" 1>&2
+      exit 1
+    fi
+  else
+    _query=$1
+    declare -a _args
+    shift
+    for _el in "$@"; do
+      _args+=("${_el//\'/\'\'}")
+    done
+    # shellcheck disable=SC2059
+    if ! printf "$_query" "${_args[@]}" | sqlite3 "$SQL_DB_PATH"; then
+      echo "database query fails" 1>&2
+      exit 1
+    fi
+  fi
+}
+
 _check_valid_db() {
   if [ ! -r "$SQL_DB_PATH" ]; then
     echo "Could not read database at $SQL_DB_PATH"
     return 1
   fi
 
-  if [ -z "$(echo '.schema virtuals' | sqlite3 "$SQL_DB_PATH")" ]; then
+  _run_sql '.dbinfo' >/dev/null
+
+  if [ -z "$(_run_sql '.schema virtuals')" ]; then
     echo "Database does not contain table virtuals!"
     return 1
   fi
 
-  if [ -z "$(echo '.schema domains' | sqlite3 "$SQL_DB_PATH")" ]; then
+  if [ -z "$(_run_sql '.schema domains')" ]; then
     echo "Database does not contain table domains!"
     return 1
   fi
 
-  if [ -z "$(echo '.schema credentials' | sqlite3 "$SQL_DB_PATH")" ]; then
+  if [ -z "$(_run_sql '.schema credentials')" ]; then
     echo "Database does not contain table credentials!"
     return 1
   fi
 }
 
 _check_user_exists() {
-  _user_count=$(printf "Select count(*) from credentials where email = '%s'" \
-    "$USERNAME" | sqlite3 "$SQL_DB_PATH")
+  _user_count=$(_run_sql "Select count(*) from credentials where email = '%s'" \
+    "$USERNAME")
 
   if [ "$_user_count" -gt 0 ]; then
     return 0
@@ -44,8 +68,8 @@ _check_user_exists() {
 }
 
 _check_domain_exists() {
-  _domain_count=$(printf "Select count(*) from domains where domain = '%s'" \
-    "$DOMAIN" | sqlite3 "$SQL_DB_PATH")
+  _domain_count=$(_run_sql "Select count(*) from domains where domain = '%s'" \
+    "$DOMAIN")
 
   if [ "$_domain_count" -gt 0 ]; then
     return 0
@@ -144,10 +168,10 @@ _add_user() {
 
   printf "Adding user '%s' with password hash '%s'\n" "$USERNAME" "$PWHASH"
 
-  printf "INSERT INTO credentials (email, password) VALUES ('%s', '%s');" \
-    "$USERNAME" "$PWHASH" | sqlite3 "$SQL_DB_PATH"
-  printf "INSERT INTO virtuals (email, destination) VALUES ('%s', 'vmail');" \
-    "$USERNAME" | sqlite3 "$SQL_DB_PATH"
+  _run_sql "INSERT INTO credentials (email, password) VALUES ('%s', '%s');" \
+    "$USERNAME" "$PWHASH"
+  _run_sql "INSERT INTO virtuals (email, destination) VALUES ('%s', 'vmail');" \
+    "$USERNAME"
 }
 
 _update_password() {
@@ -166,9 +190,8 @@ _update_password() {
 
   _get_password
 
-  printf "UPDATE credentials SET password='%s' WHERE email='%s'" \
-    "$PWHASH" "$USERNAME" |
-    sqlite3 "$SQL_DB_PATH"
+  _run_sql "UPDATE credentials SET password='%s' WHERE email='%s'" \
+    "$PWHASH" "$USERNAME"
 }
 
 _confirm_delete() {
@@ -201,10 +224,8 @@ _delete_user() {
 
   _confirm_delete "$USERNAME"
 
-  printf "DELETE FROM credentials where email = '%s'" "$USERNAME" |
-    sqlite3 "$SQL_DB_PATH"
-  printf "DELETE FROM virtuals where email = '%s'" "$USERNAME" |
-    sqlite3 "$SQL_DB_PATH"
+  _run_sql "DELETE FROM credentials where email = '%s'" "$USERNAME"
+  _run_sql "DELETE FROM virtuals where email = '%s'" "$USERNAME"
   echo "'$USERNAME' removed from database, but mail folders have not been removed"
   exit 0
 }
@@ -214,7 +235,7 @@ _list_users() {
     exit 1
   fi
 
-  printf "SELECT email FROM credentials" | sqlite3 "$SQL_DB_PATH"
+  _run_sql "SELECT email FROM credentials"
 }
 
 _add_virtual() {
@@ -231,8 +252,7 @@ _add_virtual() {
     exit 1
   fi
 
-  printf "INSERT INTO domains (domain) VALUES ('%s');" "$DOMAIN" |
-    sqlite3 "$SQL_DB_PATH"
+  _run_sql "INSERT INTO domains (domain) VALUES ('%s');" "$DOMAIN"
 }
 
 _delete_virtual() {
@@ -250,8 +270,7 @@ _delete_virtual() {
 
   _confirm_delete "$DOMAIN"
 
-  printf "DELETE FROM domains WHERE domain = '%s'" "$DOMAIN" |
-    sqlite3 "$SQL_DB_PATH"
+  _run_sql "DELETE FROM domains WHERE domain = '%s'" "$DOMAIN"
   exit 0
 }
 
@@ -260,7 +279,7 @@ _list_virtuals() {
     exit 1
   fi
 
-  printf "SELECT domain FROM domains" | sqlite3 "$SQL_DB_PATH"
+  _run_sql "SELECT domain FROM domains"
 }
 
 _usage() {
