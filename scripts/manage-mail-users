@@ -105,6 +105,19 @@ CREATE TABLE credentials (
     email VARCHAR(255) NOT NULL,
     password VARCHAR(255) NOT NULL
 );
+CREATE TABLE tree_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user int NOT NULL,
+    enabled int NOT NULL DEFAULT 1,
+    version int NOT NULL DEFAULT 1,
+    public_key VARCHAR(255) NOT NULL,
+    pwhash_algo int NOT NULL DEFAULT 1,
+    pwhash_opslimit int NOT NULL DEFAULT 2,
+    pwhash_memlimit int NOT NULL DEFAULT 67108864,
+    nonce vachar(255) NOT NULL,
+    salt vachar(255) NOT NULL,
+    locked_box varchar(255) NOT NULL
+);
 CREATE TABLE domains (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     domain VARCHAR(255) NOT NULL
@@ -172,6 +185,17 @@ _add_user() {
     "$USERNAME" "$PWHASH"
   _run_sql "INSERT INTO virtuals (email, destination) VALUES ('%s', 'vmail');" \
     "$USERNAME"
+  # add trees data
+  _userid="$(_run_sql "SELECT id FROM credentials WHERE email = '%s'" \
+    "$USERNAME")"
+  mapfile -d "" _trees < <(echo -n "$PASSWORD" | treesutil -c)
+  if [ "${#_trees[@]}" -ne 4 ]; then
+    echo "Error creating trees data"
+    return 1
+  fi
+  #echo -e "pkey: ${_trees[0]}\nsalt: ${_trees[1]}\nnonce: ${_trees[2]}\nlocked: ${_trees[3]}"
+  _run_sql "INSERT INTO tree_keys (user, public_key, salt, nonce, locked_box) VALUES('%s', '%s', '%s', '%s', '%s')" \
+    "$_userid" "${_trees[0]}" "${_trees[1]}" "${_trees[2]}" "${_trees[3]}"
 }
 
 _update_password() {
@@ -190,8 +214,27 @@ _update_password() {
 
   _get_password
 
+  _userid="$(_run_sql "SELECT id FROM credentials WHERE email = '%s'" "$USERNAME")"
+  mapfile -td '|' _trees \
+    < <(_run_sql "SELECT public_key, salt, nonce, locked_box FROM tree_keys where user = '%s'" \
+      "$_userid")
+
+  while [ -z "$OLDPW" ]; do
+    read -rs -p "Enter old password: " OLDPW
+    printf '\n'
+    mapfile -d "" _newtrees < <(printf '%s\0%s\0%s\0%s\0%s\0%s\0' \
+      "${_trees[0]}" "${_trees[1]}" "${_trees[2]}" "${_trees[3]//[$'\n']/}" \
+      "$OLDPW" "$PASSWORD" | treesutil -p)
+    if [ "${#_newtrees[@]}" -ne 4 ]; then
+      echo "Wrong old password"
+      OLDPW=
+    fi
+  done
+
   _run_sql "UPDATE credentials SET password='%s' WHERE email='%s'" \
     "$PWHASH" "$USERNAME"
+  _run_sql "UPDATE tree_keys SET salt='%s', nonce='%s', locked_box='%s' WHERE user = '%s'" \
+    "${_newtrees[1]}" "${_newtrees[2]}" "${_newtrees[3]}" "$_userid"
 }
 
 _confirm_delete() {
@@ -224,8 +267,10 @@ _delete_user() {
 
   _confirm_delete "$USERNAME"
 
+  _userid="$(_run_sql "SELECT id FROM credentials WHERE email = '%s'" "$USERNAME")"
   _run_sql "DELETE FROM credentials where email = '%s'" "$USERNAME"
   _run_sql "DELETE FROM virtuals where email = '%s'" "$USERNAME"
+  _run_sql "DELETE FROM tree_keys where user = '%s'" "$_userid"
   echo "'$USERNAME' removed from database, but mail folders have not been removed"
   exit 0
 }
