@@ -108,8 +108,23 @@ default_pass_scheme = ARGON2ID
 #     FROM users WHERE userid = '%u' AND active = 'Y'
 #
 password_query = \
-  SELECT email as user, password \
-  FROM credentials WHERE email = '%u'
+SELECT c.email as user, c.password, \
+ 'vmail' as userdb_uid, 'vmail' as userdb_gid, \
+  '/var/vmail/%d/%n' as userdb_home,'*:storage=15G' as userdb_quota_rule, \
+  replace('%w', '%%', '%%%%') as userdb_trees_password, \
+  ifnull(t.enabled, 0) as userdb_trees_enabled, \
+  t.version as userdb_trees_version, \
+  t.public_key as userdb_trees_public_key, \
+  t.locked_box as userdb_trees_locked_secretbox, \
+  t.nonce as userdb_trees_sk_nonce, \
+  t.pwhash_algo as userdb_trees_pwhash_algo, \
+  t.pwhash_opslimit as userdb_trees_pwhash_opslimit, \
+  t.pwhash_memlimit as userdb_trees_pwhash_memlimit, \
+  t.salt as userdb_trees_pwhash_salt \
+  FROM credentials c \
+  LEFT JOIN tree_keys t \
+  ON c.id = t.user \
+  WHERE email = '%u'
 
 # userdb query to retrieve the user information. It can return fields:
 #   uid - System UID (overrides mail_uid setting)
@@ -127,9 +142,17 @@ password_query = \
 #   user_query = SELECT dir AS home, user AS uid, group AS gid FROM users where userid = '%u'
 #   user_query = SELECT home, 501 AS uid, 501 AS gid FROM users WHERE userid = '%u'
 #
-#user_query = \
-#  SELECT home, uid, gid \
-#  FROM users WHERE username = '%n' AND domain = '%d'
+user_query = \
+SELECT c.email as user, \
+ 'vmail' as uid, 'vmail' as gid, \
+  '/var/vmail/%d/%n' as home,'*:storage=15G' as quota_rule, \
+  ifnull(t.enabled, 0) as trees_enabled, \
+  t.version as trees_version, \
+  t.public_key as trees_public_key \
+  FROM credentials c \
+  LEFT JOIN tree_keys t \
+  ON c.id = t.user \
+  WHERE email = '%u'
 
 # If you wish to avoid two SQL lookups (passdb + userdb), you can use
 # userdb prefetch instead of userdb sql in dovecot.conf. In that case you'll
@@ -139,9 +162,6 @@ password_query = \
 #  SELECT userid AS user, password, \
 #    home AS userdb_home, uid AS userdb_uid, gid AS userdb_gid \
 #  FROM users WHERE userid = '%u'
-
-# silence warning about static user database
-userdb_warning_disable=yes
 
 # Query to get a list of all usernames.
 iterate_query = SELECT email AS user FROM credentials
