@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <errno.h>
 #include <sodium.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -8,11 +9,17 @@
 #include <string.h>
 #include <unistd.h>
 
+/* magic header + version */
+const unsigned char TREES_MAGIC[] = {0xee, 0xff, 0xcc, 0x00, 0x00, 0x00, 0x01};
+#define CHUNK_SIZE 8192
+#define ENCRYPTED_CHUNK_SIZE (crypto_box_SEALBYTES + CHUNK_SIZE)
+
 enum COMMAND {
     NONE = 0,
     CREATE,
     CHANGEPW,
-    ED25519
+    ED25519,
+    DECRYPT
 };
 
 enum COMMAND mode = NONE;
@@ -49,10 +56,13 @@ print_debug_hex(unsigned char *s, size_t len)
 static void
 usage(FILE* s)
 {
-    fputs("treesutil [-cpsvh]\n"
+    fputs("treesutil [-cpsvhdio]\n"
           " -h print this message\n"
           " -c create user\n"
           " -p change password\n"
+          " -d decrypt file\n"
+          " -i input file for decryption\n"
+          " -o output file for decryption\n"
           " -s create ed25519 keypair\n"
           " -v print debug output (insecure)\n"
           "man treeutil for details", s);
@@ -66,6 +76,7 @@ die(bool showusage, char *m, ...)
         va_start(ap, m);
         vfprintf(stderr, m, ap);
         va_end(ap);
+        fputc('\n', stderr);
     }
     if(showusage)
         usage(stderr);
@@ -227,6 +238,60 @@ createuser()
     exit(EXIT_SUCCESS);
 }
 
+static void
+getuserstdin(user_t *user)
+{
+    char** inputs;
+    char* pubkeystr, *saltstr, *noncestr, *lockedstr;
+
+    inputs = getinputs(4);
+
+    pubkeystr = inputs[0];
+    saltstr = inputs[1];
+    noncestr = inputs[2];
+    lockedstr = inputs[3];
+
+    if(strlen(pubkeystr) != sizeof user->pubkeystr -1)
+        die(false, "wrong pubkey length");
+    if(strlen(saltstr) != sizeof user->saltstr - 1)
+        die(false, "wrong salt length");
+    if(strlen(noncestr) != sizeof user->noncestr - 1)
+        die(false, "wrong nonce length");
+    if(strlen(lockedstr) != sizeof user->lockedstr -1)
+        die(false, "wrong locked box length");
+    memcpy(user->pubkeystr, pubkeystr, sizeof user->pubkeystr);
+    memcpy(user->saltstr, saltstr, sizeof user->saltstr);
+    memcpy(user->noncestr, noncestr, sizeof user->noncestr);
+    memcpy(user->lockedstr, lockedstr, sizeof user->lockedstr);
+
+    unhexuser(user);
+}
+
+static void
+decryptuserbox(user_t *user, const char *pass)
+{
+    unsigned char testpk[crypto_box_PUBLICKEYBYTES];
+    /* derive secretbox key from password and decrypt box */
+    if(crypto_pwhash(user->secretkey, sizeof user->secretkey,
+                     pass, strlen(pass), user->salt,
+                     crypto_pwhash_OPSLIMIT_INTERACTIVE,
+                     crypto_pwhash_MEMLIMIT_INTERACTIVE,
+                     crypto_pwhash_ALG_ARGON2ID13) != 0) {
+        die(false, "key derivation fails for old password");
+    }
+    if(VERBOSE) {
+        fprintf(stderr, "Secret key (old password): ");
+        print_debug_hex(user->secretkey, sizeof user->secretkey);
+    }
+    if(crypto_secretbox_open_easy(user->privkey, user->locked, sizeof user->locked,
+                                  user->nonce, user->secretkey) != 0)
+        die(false, "invalid old password");
+
+    crypto_scalarmult_base(testpk, user->privkey);
+    if(sodium_memcmp(user->pubkey, testpk, sizeof testpk) != 0)
+        die(false, "private key from box does not match public key provided");
+}
+
 /**
  * Change user password
  *
@@ -240,53 +305,15 @@ changepw()
 {
     char** inputs;
     user_t user;
-    char* pubkeystr, *saltstr, *noncestr, *lockedstr, *oldpass, *newpass;
-    unsigned char testpk[crypto_box_PUBLICKEYBYTES];
+    char *oldpass, *newpass;
 
-    inputs = getinputs(6);
+    getuserstdin(&user);
 
-    pubkeystr = inputs[0];
-    saltstr = inputs[1];
-    noncestr = inputs[2];
-    lockedstr = inputs[3];
-    oldpass = inputs[4];
-    newpass = inputs[5];
+    inputs = getinputs(2);
+    oldpass = inputs[0];
+    newpass = inputs[1];
 
-    if(strlen(pubkeystr) != sizeof user.pubkeystr -1)
-        die(false, "wrong pubkey length");
-    if(strlen(saltstr) != sizeof user.saltstr - 1)
-        die(false, "wrong salt length");
-    if(strlen(noncestr) != sizeof user.noncestr - 1)
-        die(false, "wrong nonce length");
-    if(strlen(lockedstr) != sizeof user.lockedstr -1)
-        die(false, "wrong locked box length");
-    memcpy(user.pubkeystr, pubkeystr, sizeof user.pubkeystr);
-    memcpy(user.saltstr, saltstr, sizeof user.saltstr);
-    memcpy(user.noncestr, noncestr, sizeof user.noncestr);
-    memcpy(user.lockedstr, lockedstr, sizeof user.lockedstr);
-
-    unhexuser(&user);
-
-    /* derive secretbox key from password and decrypt box */
-    if(crypto_pwhash(user.secretkey, sizeof user.secretkey,
-                     oldpass, strlen(oldpass), user.salt,
-                     crypto_pwhash_OPSLIMIT_INTERACTIVE,
-                     crypto_pwhash_MEMLIMIT_INTERACTIVE,
-                     crypto_pwhash_ALG_ARGON2ID13) != 0) {
-        die(false, "key derivation fails for old password");
-    }
-    if(VERBOSE) {
-        fprintf(stderr, "Secret key (old password): ");
-        print_debug_hex(user.secretkey, sizeof user.secretkey);
-    }
-    if(crypto_secretbox_open_easy(user.privkey, user.locked, sizeof user.locked,
-                                  user.nonce, user.secretkey) != 0)
-        die(false, "invalid old password");
-
-    crypto_scalarmult_base(testpk, user.privkey);
-    if(sodium_memcmp(user.pubkey, testpk, sizeof testpk) != 0)
-        die(false, "private key from box does not match public key provided");
-
+    decryptuserbox(&user, oldpass);
     gensecrets(&user, newpass);
     hexuser(&user);
     printuser(&user);
@@ -322,6 +349,82 @@ gened25519()
     exit(EXIT_SUCCESS);
 }
 
+/**
+ * opens a trees file
+ * checks for a valid trees header
+ * returns file with position after the header
+ */
+FILE *
+open_trees_file(const char *path)
+{
+    FILE *file;
+    size_t ret;
+    unsigned char buffer[sizeof TREES_MAGIC];
+
+    file = fopen(path, "r");
+    if(file == NULL) {
+        die(true, "error opening file: %s", strerror(errno));
+    }
+
+    ret = fread(buffer, 1, sizeof TREES_MAGIC, file);
+
+    if(ret != sizeof TREES_MAGIC) {
+        die(false, "invalid header");
+    }
+    if(memcmp(buffer, TREES_MAGIC, sizeof TREES_MAGIC) != 0) {
+        die(false, "header does not match expected");
+    }
+    return file;
+}
+
+/**
+ * writes file
+ * FILE* in must have been opened with open_trees_file
+ */
+static void
+decrypttreesfile(user_t *user, const char *outpath, FILE *in)
+{
+    FILE *out;
+    size_t ret;
+    unsigned char inbuf[ENCRYPTED_CHUNK_SIZE];
+    unsigned char outbuf[CHUNK_SIZE];
+
+    out = fopen(outpath, "w");
+    if(out == NULL) {
+        die(true, "error opening output file: %s", strerror(errno));
+    }
+    while((ret = fread(inbuf, 1, sizeof inbuf, in)) > 0) {
+        if(ret < crypto_box_SEALBYTES) {
+            die(false, "invalid chunk; too short");
+        }
+        if(crypto_box_seal_open(outbuf, inbuf,
+                                ret, user->pubkey, user->privkey) != 0) {
+            die(false, "unable to decrypt chunk");
+        }
+        fwrite(outbuf, 1, ret - crypto_box_SEALBYTES, out);
+    }
+    if(feof(out)) {
+        die(false, "error reading file: %s", strerror(ferror(in)));
+    }
+    fclose(out);
+}
+
+static void
+decrypt(const char *infile, const char *outfile)
+{
+    user_t user;
+    FILE *in;
+    char **inputs;
+
+    getuserstdin(&user);
+    inputs = getinputs(1);
+    decryptuserbox(&user, inputs[0]);
+
+    in = open_trees_file(infile);
+    decrypttreesfile(&user, outfile, in);
+    exit(EXIT_SUCCESS);
+}
+
 static void
 setcommand(enum COMMAND m)
 {
@@ -334,12 +437,13 @@ int
 main(int argc, char** argv)
 {
     int f;
+    char *infile, *outfile;
 
     if(sodium_init() == -1) {
         abort();
     }
 
-    while((f = getopt(argc, argv, "cpshv")) != -1) {
+    while((f = getopt(argc, argv, "cpshvdi:o:")) != -1) {
         switch(f) {
         case 'c':
             setcommand(CREATE);
@@ -350,6 +454,15 @@ main(int argc, char** argv)
         case 's':
             setcommand(ED25519);
             break;
+        case 'd':
+            setcommand(DECRYPT);
+            break;
+        case 'i':
+            infile = optarg;
+            break;
+        case 'o':
+            outfile = optarg;
+            break;
         case 'h':
             usage(stdout);
             exit(EXIT_SUCCESS);
@@ -359,9 +472,9 @@ main(int argc, char** argv)
             break;
         case '?':
             if (isprint (optopt))
-                die(true, "Unknown option '-%c'\n", optopt);
+                die(true, "Unknown option '-%c'", optopt);
             else
-                die(true, "Unknown option character '\\x%x'\n", optopt);
+                die(true, "Unknown option character '\\x%x'", optopt);
             break;
         default:
             abort();
@@ -380,6 +493,12 @@ main(int argc, char** argv)
         break;
     case ED25519:
         gened25519();
+        break;
+    case DECRYPT:
+        if(infile == NULL || outfile == NULL) {
+            die(true, "decrypt option needs input and output files");
+        }
+        decrypt(infile, outfile);
         break;
     default:
         abort();

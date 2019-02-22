@@ -9,6 +9,10 @@
 .Op Fl v
 .Fl c | p | s
 .Nm treesutil
+.Fl d
+.Fl i Ar input\ file
+.Fl o Ar output\ file
+.Nm treesutil
 .Fl h
 .Sh DESCRIPTION
 The
@@ -39,6 +43,15 @@ These are all delimited with null characters.
 The output is the same as the
 .Fl c
 flag.
+.It Fl d
+Decrypt file.
+Takes an input the public key, salt, nonce, locked private key
+in hex format, and the password.
+Flags
+.Fl i
+and
+.Fl o
+are mandatory using this function.
 .It Fl s
 Create ed25519 key pair.
 Takes no inputs.
