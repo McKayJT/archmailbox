@@ -1,0 +1,29 @@
+# Maintainer: John McKay <john AT octet DOT space>
+
+pkgname=dovecot-trees
+pkgver=v2.1.0.r21.14fed7d
+pkgrel=1
+pkgdesc="trees encryption plugin for dovecot"
+arch=('x86_64')
+url="https://0xacab.org/riseuplabs/trees/"
+license=('AGPL3')
+depends=('dovecot' 'libsodium')
+makedepends=('git')
+provides=("${pkgname##dovecot-}")
+conflicts=("${pkgname##dovecot-}")
+source=('trees::git+https://0xacab.org/riseuplabs/trees.git#commit=14fed7d1')
+sha256sums=('SKIP')
+
+build() {
+	cd "$srcdir/${pkgname##dovecot-}"
+	./autogen.sh
+	./configure --prefix=/usr \
+	--with-moduledir=/usr/lib/dovecot/modules
+
+	make
+}
+
+package() {
+	cd "$srcdir/${pkgname##dovecot-}"
+	make DESTDIR="$pkgdir/" install
+}

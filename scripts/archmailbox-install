@@ -4,7 +4,7 @@ all_packages=('python-atpublic' 'python-aiosmtpd'
   'python-aiosmtplib' 'rspamd' 'encpipe'
   'opensmtpd' 'acme.sh' 'nftables'
   'knot-resolver' 'pyrelay-rspamd'
-  'mtree' 'dovecot' 'pigeonhole')
+  'mtree' 'dovecot' 'pigeonhole' 'dovecot-trees')
 
 CFG_INSTALL_DIR='/usr/share/archmailbox'
 
