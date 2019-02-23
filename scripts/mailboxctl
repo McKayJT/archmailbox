@@ -241,7 +241,7 @@ _generate_dkim() {
   mkdir "$_output_dir" || _die "error creating output directory $_output_dir"
   _gen_rsa_dkim_key
 
-  _eddsa_keys="$(eddsatool genkey)"
+  _eddsa_keys="$(treesutil -s)"
   _eddsa_private="$(echo "$_eddsa_keys" | cut -d ' ' -f1 -)"
   _eddsa_public="$(echo "$_eddsa_keys" | cut -d ' ' -f2 -)"
 

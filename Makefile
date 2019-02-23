@@ -16,8 +16,6 @@ install: all
 	cp -r configs $(DESTDIR)$(datadir)/archmailbox
 	install -Dm755 src/treesutil \
 		$(DESTDIR)$(bindir)/treesutil
-	install -Dm755 scripts/eddsatool \
-		$(DESTDIR)$(bindir)/eddsatool
 	install -Dm755 scripts/mailboxctl \
 		$(DESTDIR)$(bindir)/mailboxctl
 	install -Dm755 scripts/manage-mail-users \
