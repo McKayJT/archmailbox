@@ -75,4 +75,4 @@ The
 option poses a security risk as any user on the system can see the password in the process list.
 It is intended only for use during non-interactive setup.
 
-Linux 4.20.8-arch1-1-ARCH - February 11, 2019
+Linux 4.20.10-arch1-1-ARCH - February 11, 2019

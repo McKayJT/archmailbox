@@ -41,4 +41,4 @@ The **archmailbox-install** utility exits&#160;0 on success, and&#160;&gt;0 if a
 
 	# archmailbox-install installconfigs
 
-Linux 4.20.8-arch1-1-ARCH - February 16 2019
+Linux 4.20.10-arch1-1-ARCH - February 16 2019

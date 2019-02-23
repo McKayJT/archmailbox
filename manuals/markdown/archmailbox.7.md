@@ -99,17 +99,43 @@ dovecot(1)
 authentication process uses the smtpd group to allow access to the
 user configuration database.
 
+The email data is protected at rest using trees.
+trees will encrypt email delivered using public-key cryptography.
+The private part of the key is stored in the user database encrypted
+using a symmetric key generated with argon2 and a salt separate than
+the one used to verify the password.
+
+The
+treesutil(1)
+utility can be used to manage trees user data and can also be used
+to decrypt a trees encrypted file.
+
 The \_rspamd user has control over DKIM keys stored in
 */var/lib/rspamd/dkim*.
 No other user is given access to the keys.
 
+The ports used for dkim signing are protected against malicious
+users with a simple nftables based rule set.
+It uses the table dkim\_filter for both ip and ip6.
+
+The default nftables service included with the nftables package
+deletes all rules and then replaces them with the rules in
+*/etc/nftables.conf*.
+If this service is being used add an include of
+*/etc/archmailbox-nftables.conf*
+in this file and disable the archmailbox-nftables service.
+
 # SEE ALSO
 
 dovecot(1),
+treesutil(1),
 archmailbox-install(8),
 mailboxctl(8),
 manage-mail-users(8),
+nft(8),
 rspamd(8),
 smtpd(8)
 
-Linux 4.20.8-arch1-1-ARCH - February 16, 2019
+[trees](https://0xacab.org/riseuplabs/trees)
+
+Linux 4.20.10-arch1-1-ARCH - February 16, 2019

@@ -164,6 +164,17 @@ It also is used to create and restore backups of the server.
 > ones are deployed after renewal.
 > The certificate backups are never rotated and are kept forever.
 
+**enable**
+
+> Enables and starts all archmailbox services.
+> This command does a basic sanity check to ensure there are
+> configuration files required but does not check validity
+> of the configuration.
+
+**disable**
+
+> Disables and stops all archmailbox services.
+
 # FILES
 
 *backup.tar.xz.encpipe*
@@ -173,4 +184,4 @@ is used as the default file for configuration backup and restore
 
 The **mailboxctl** utility exits&#160;0 on success, and&#160;&gt;0 if an error occurs.
 
-Linux 4.20.8-arch1-1-ARCH - February 16, 2019
+Linux 4.20.10-arch1-1-ARCH - February 17, 2019
