@@ -88,6 +88,17 @@ The
 authentication process uses the smtpd group to allow access to the
 user configuration database.
 .Pp
+The email data is protected at rest using trees.
+trees will encrypt email delivered using public-key cryptography.
+The private part of the key is stored in the user database encrypted
+using a symmetric key generated with argon2 and a salt separate than
+the one used to verify the password.
+.Pp
+The
+.Xr treesutil 1
+utility can be used to manage trees user data and can also be used
+to decrypt a trees encrypted file.
+.Pp
 The _rspamd user has control over DKIM keys stored in
 .Pa /var/lib/rspamd/dkim .
 No other user is given access to the keys.
@@ -104,9 +115,12 @@ If this service is being used add an include of
 in this file and disable the archmailbox\&-\&nftables service.
 .Sh SEE ALSO
 .Xr dovecot 1 ,
+.Xr treesutil 1 ,
 .Xr archmailbox-install 8 ,
 .Xr mailboxctl 8 ,
 .Xr manage-mail-users 8 ,
 .Xr nft 8 ,
 .Xr rspamd 8 ,
 .Xr smtpd 8
+.Pp
+.Lk https://0xacab.org/riseuplabs/trees trees

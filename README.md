@@ -41,6 +41,7 @@ simplify my future efforts.
 * Installation of initial configuration
 * PKGBUILDs for all the projects needed for the server
 * Installation of initial configuration
+* Encrypt data at rest using [trees](https://0xacab.org/riseuplabs/trees)
 
 ## Semi-working items
 
