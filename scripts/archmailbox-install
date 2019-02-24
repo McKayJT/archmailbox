@@ -47,7 +47,7 @@ _install_packages() {
         done
         _die "build of $_package failed. Log files stored in current directory."
       fi
-      if [ -z "$SAVEPKGS" ]; then
+      if [ -n "$SAVEPKGS" ]; then
         cp "$TEMP_DIR"/*.pkg.tar.xz "$SAVEPKGS"
       fi
       rm -rf "$TEMP_DIR"
