@@ -200,7 +200,7 @@ while getopts 'h:s:' f; do
   case $f in
   h) HOSTNAME=$OPTARG ;;
   s)
-    SAVEPKGS=$OPTARG
+    SAVEPKGS="$(realpath $OPTARG)"
     if [ ! -d "$SAVEPKGS" ]; then
       _die "cannot save packages to $SAVEPKGS: directory not found"
     fi
