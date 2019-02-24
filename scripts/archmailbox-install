@@ -7,6 +7,7 @@ all_packages=('python-atpublic' 'python-aiosmtpd'
   'mtree' 'dovecot' 'pigeonhole' 'dovecot-trees')
 
 CFG_INSTALL_DIR='/usr/share/archmailbox'
+SAVEPKGS=
 
 # _die message usage
 _die() {
@@ -45,6 +46,9 @@ _install_packages() {
           cp "$_log" "$_tmp"
         done
         _die "build of $_package failed. Log files stored in current directory."
+      fi
+      if [ -n "$SAVEPKGS" ]; then
+        cp "$TEMP_DIR"/*.pkg.tar.xz "$SAVEPKGS"
       fi
       rm -rf "$TEMP_DIR"
       TEMP_DIR="$(mktemp -d)"
@@ -192,9 +196,15 @@ EOF
 
 _create_temp_dir
 
-while getopts 'h:' f; do
+while getopts 'h:s:' f; do
   case $f in
   h) HOSTNAME=$OPTARG ;;
+  s)
+    SAVEPKGS="$(realpath $OPTARG)"
+    if [ ! -d "$SAVEPKGS" ]; then
+      _die "cannot save packages to $SAVEPKGS: directory not found"
+    fi
+    ;;
   *) _die "Unrecognized flag" ;;
   esac
 done
