@@ -1,12 +1,12 @@
 # Maintainer: John McKay <john AT octet DOT space>
 pkgname='archmailbox-git'
-pkgver=VERSION
+pkgver=r78.d5de21b
 pkgrel=1
 pkgdesc="Batteries-included mail server configuration"
 arch=('any')
 url="https://github.com/McKayJT/archmailbox/"
 license=('custom:UNLICENSE')
-depends=('bash' 'python' 'libsodium')
+depends=('bash' 'libsodium')
 makedepends=('git')
 source=('git+https://github.com/McKayJT/archmailbox.git')
 sha256sums=('SKIP')
